@@ -1,10 +1,14 @@
 "use client";
 
+import { BankLogo } from "@/components/common/BankLogo";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BANK_BRANDS } from "@/web/banks";
+import { sanitizeAccountInput } from "@/web/format";
 import { Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { newRecipientBody, THAI_BANKS, type BankCode } from "@/domain/recipients";
+import { newRecipientBody, type BankCode } from "@/domain/recipients";
 import { useApi } from "@/web/api/ApiProvider";
 import { isApiError } from "@/web/api/errors";
 import type { Recipient } from "@/web/api/types";
@@ -31,7 +35,7 @@ export function RecipientForm({ onSaved, onCancel }: { onSaved(r: Recipient): vo
   const [saving, setSaving] = useState(false);
   // Enter can fire twice before `saving` re-renders; the ref blocks the second POST.
   const inFlight = useRef(false);
-  const refs = { name: useRef<HTMLInputElement>(null), bankCode: useRef<HTMLSelectElement>(null), accountNumber: useRef<HTMLInputElement>(null) };
+  const refs = { name: useRef<HTMLInputElement>(null), bankCode: useRef<HTMLButtonElement>(null), accountNumber: useRef<HTMLInputElement>(null) };
 
   function showErrors(fields: Field[]) {
     setErrors(Object.fromEntries(fields.map((f) => [f, true])));
@@ -82,19 +86,37 @@ export function RecipientForm({ onSaved, onCancel }: { onSaved(r: Recipient): vo
         </div>
         <div>
           <label htmlFor="rcp-bank" className="text-sm font-medium text-muted-foreground">{t("recipient.bank")}</label>
-          <select id="rcp-bank" ref={refs.bankCode} value={bankCode}
-            onChange={(e) => { setBankCode(e.target.value as BankCode); setErrors((x) => ({ ...x, bankCode: undefined })); }}
-            aria-invalid={!!errors.bankCode} aria-describedby={errors.bankCode ? "rcp-bankCode-error" : undefined}
-            className={inputClass(!!errors.bankCode)}>
-            <option value="" disabled>{t("recipient.bankPlaceholder")}</option>
-            {THAI_BANKS.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-          </select>
+          <Select value={bankCode} onValueChange={(v) => { setBankCode(v as BankCode); setErrors((x) => ({ ...x, bankCode: undefined })); }}>
+            <SelectTrigger id="rcp-bank" ref={refs.bankCode}
+              aria-invalid={!!errors.bankCode} aria-describedby={errors.bankCode ? "rcp-bankCode-error" : undefined}
+              className={inputClass(!!errors.bankCode)}>
+              <SelectValue placeholder={t("recipient.bankPlaceholder")} />
+            </SelectTrigger>
+            <SelectContent>
+              {BANK_BRANDS.map((b) => (
+                <SelectItem key={b.code} value={b.code}>
+                  <span className="flex items-center gap-2">
+                    <BankLogo label={b.label} size="sm" />
+                    {b.label}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {err("bankCode")}
         </div>
         <div>
           <label htmlFor="rcp-account" className="text-sm font-medium text-muted-foreground">{t("recipient.account")}</label>
-          <input id="rcp-account" ref={refs.accountNumber} value={accountNumber} inputMode="numeric" autoComplete="off" maxLength={20}
-            onChange={(e) => { setAccountNumber(e.target.value); setErrors((x) => ({ ...x, accountNumber: undefined })); }}
+          <input id="rcp-account" ref={refs.accountNumber} value={accountNumber} inputMode="numeric" autoComplete="off" maxLength={12}
+            onPaste={(e) => {
+              e.preventDefault();
+              const field = e.currentTarget;
+              const start = field.selectionStart ?? field.value.length;
+              const end = field.selectionEnd ?? start;
+              setAccountNumber(sanitizeAccountInput(field.value.slice(0, start) + e.clipboardData.getData("text") + field.value.slice(end)));
+              setErrors((x) => ({ ...x, accountNumber: undefined }));
+            }}
+            onChange={(e) => { setAccountNumber(sanitizeAccountInput(e.target.value)); setErrors((x) => ({ ...x, accountNumber: undefined })); }}
             aria-invalid={!!errors.accountNumber}
             aria-describedby={errors.accountNumber ? "rcp-account-help rcp-accountNumber-error" : "rcp-account-help"}
             className={cn(inputClass(!!errors.accountNumber), "tabular")} />

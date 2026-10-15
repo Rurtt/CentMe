@@ -15,6 +15,7 @@ import { getOrCreateKey } from "@/web/idempotency";
 import { errorText } from "@/web/i18n/errorText";
 import { useT } from "@/web/i18n/LanguageProvider";
 import { formatMinor, formatRate } from "@/web/money";
+import { canPayFromWallet, getBalanceMinor, setPaySource, type PaySource } from "@/web/wallet";
 import { cn } from "@/web/utils";
 import { BankSheet } from "./BankSheet";
 import { ExpiryCountdown } from "./ExpiryCountdown";
@@ -33,6 +34,8 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
   const router = useRouter();
   const [expired, setExpired] = useState(() => Date.now() >= Date.parse(quote.expiresAt));
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [source, setSource] = useState<PaySource>("CARD");
+  const [balanceMinor, setBalanceMinor] = useState(() => getBalanceMinor());
   const [paying, setPaying] = useState(false);
   const payingRef = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -52,6 +55,7 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
         { quoteId: quote.id, purpose: "PERSONAL_REMITTANCE", demoScenario: readScenario() },
         key,
       );
+      setPaySource(transfer.id, source);
       router.replace(`/transfers/${encodeURIComponent(transfer.id)}?fund=1`);
     } catch (e) {
       payingRef.current = false;
@@ -110,7 +114,7 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
             {t("review.newQuote")}
           </Button>
         ) : (
-          <Button className="h-12 text-base font-semibold" onClick={() => setSheetOpen(true)}>
+          <Button className="h-12 text-base font-semibold" onClick={() => { setBalanceMinor(getBalanceMinor()); setSource("CARD"); setSheetOpen(true); }}>
             {t("review.pay", { amount: amountText })}
           </Button>
         )}
@@ -125,6 +129,10 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
           if (!payingRef.current) setSheetOpen(open);
         }}
         amountText={amountText}
+        balanceText={formatMinor(String(balanceMinor), "USD", lang)}
+        walletEnough={canPayFromWallet(quote.sourceDebitMinor)}
+        source={source}
+        onSourceChange={setSource}
         paying={paying}
         onConfirm={() => void confirm()}
       />

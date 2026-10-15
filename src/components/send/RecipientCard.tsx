@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { BankLogo } from "@/components/common/BankLogo";
 import { RecipientForm } from "@/components/send/RecipientForm";
 import { Button } from "@/components/ui/button";
 import type { Recipient } from "@/web/api/types";
-import { initials, maskAccount } from "@/web/format";
+import { maskAccount } from "@/web/format";
 import { useT } from "@/web/i18n/LanguageProvider";
 
 type Props = { recipient: Recipient | null; failed: boolean; onChange(r: Recipient): void; onEditingChange(editing: boolean): void };
@@ -33,9 +34,11 @@ export function RecipientCard({ recipient, failed, onChange, onEditingChange }: 
         <RecipientForm onCancel={close} onSaved={(r) => { onChange(r); close(); }} />
       ) : (
         <div className="mt-2 flex items-center gap-4 rounded-xl border bg-background p-4">
-          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-secondary font-semibold text-brand">
-            {recipient ? initials(recipient.name) : ""}
-          </span>
+          {recipient ? (
+            <BankLogo label={recipient.bankLabel} />
+          ) : (
+            <span aria-hidden className="size-10 shrink-0 rounded-lg bg-secondary" />
+          )}
           {recipient ? (
             <>
               <div className="min-w-0 flex-1">

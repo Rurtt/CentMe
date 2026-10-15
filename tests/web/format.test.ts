@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCountdown, initials, maskAccount, shortHash } from "@/web/format";
+import { sanitizeAccountInput, formatCountdown, initials, maskAccount, shortHash } from "@/web/format";
 
 describe("format", () => {
   it("masks the account to the last four characters", () => {
@@ -18,5 +18,19 @@ describe("format", () => {
   it("builds initials", () => {
     expect(initials("Demo Recipient")).toBe("DR");
     expect(initials("  solo ")).toBe("S");
+  });
+});
+
+describe("sanitizeAccountInput", () => {
+  it("keeps digits only", () => {
+    expect(sanitizeAccountInput("123-456-7890")).toBe("1234567890");
+    expect(sanitizeAccountInput("12a 34")).toBe("1234");
+  });
+  it("stops at 12 digits", () => {
+    expect(sanitizeAccountInput("12 3456 7890 123")).toBe("123456789012");
+    expect(sanitizeAccountInput("1".repeat(20))).toHaveLength(12);
+  });
+  it("handles empty input", () => {
+    expect(sanitizeAccountInput("")).toBe("");
   });
 });

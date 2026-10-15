@@ -20,3 +20,8 @@ export function initials(name: string): string {
 export function formatDateTime(iso: string, lang: Lang): string {
   return new Intl.DateTimeFormat(LOCALE[lang], { dateStyle: "medium", timeStyle: "medium" }).format(new Date(iso));
 }
+
+/** Account field: digits only, at most 12, so pasting "123-456-7890" works and a 13th digit does nothing. */
+export function sanitizeAccountInput(raw: string): string {
+  return raw.replace(/\D/g, "").slice(0, 12);
+}

@@ -108,3 +108,18 @@
 .token-travel {
   animation: centme-travel 1.2s ease-in-out infinite;
 }
+
+/* Print / Save PDF: only the receipt (#invoice) goes on paper. */
+@media print {
+  @page { margin: 16mm; }
+  body { background: #fff !important; }
+  body * { visibility: hidden; }
+  #invoice, #invoice * { visibility: visible; }
+  #invoice {
+    position: absolute; inset: 0 auto auto 0; width: 100%;
+    border: 0 !important; box-shadow: none !important; padding: 0 !important;
+    color: #000 !important; animation: none !important;
+  }
+  #invoice .text-brand, #invoice .text-foreground { color: #000 !important; }
+  #invoice .text-muted-foreground { color: #333 !important; }
+}

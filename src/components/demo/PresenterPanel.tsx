@@ -9,6 +9,7 @@ import { ENDPOINT_GROUPS } from "@/web/api/index";
 import { CHECK_SCENARIOS, DEMO_SCENARIOS, type CheckScenario, type DemoScenario } from "@/web/api/types";
 import { readCheckScenario, readScenario, writeCheckScenario, writeScenario } from "@/web/demoScenario";
 import { useT } from "@/web/i18n/LanguageProvider";
+import { resetWallet } from "@/web/wallet";
 import { cn } from "@/web/utils";
 
 export function PresenterPanel() {
@@ -121,6 +122,7 @@ function PanelBody({ onClose }: { onClose(): void }) {
         className="mt-4 w-full"
         onClick={() => {
           resetMock();
+          resetWallet();
           router.push("/");
         }}
       >
