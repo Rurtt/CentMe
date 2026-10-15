@@ -1,6 +1,8 @@
 # CentMe frontend design
 
-Date: 2026-10-16, Asia/Bangkok. Owner: person 1 (frontend). Status: design for review; no frontend code exists yet.
+Date: 2026-10-16, Asia/Bangkok. Owner: person 1 (frontend). Status: approved; no frontend code exists yet.
+
+**Revised 2026-10-16 after backend v1** (person 3, `4rtem1sss/U-hackathon_backend`, branch `part3/backend-core`): frontend now lives inside the backend repo (section 7), notification shape follows the backend (section 6), real-endpoint switch order fixed (section 5), receipt shows the server summary (section 2). Visual design unchanged.
 
 Scope: send, quote, tracking, receipt and browser walkthrough for the USD-to-THB demo. Backend contract: [API contract](../../api-contract.md). Demo scope: [current scope](2026-10-15-p2p-sandbox-scope-and-next-steps.md). This spec does not change backend ownership.
 
@@ -59,6 +61,7 @@ Vertical timeline, four steps, each with icon, plain-language label, timestamp a
 - A "Recipient notified" chip (Lucide `smartphone`) appears when `notification.status === "SENT"` (see section 6).
 - Technical details (tx hash, references, chain ID, token address) sit behind a "Details" disclosure.
 - On `COMPLETED_SIMULATED`: success state, "They received ฿343.00" counts up, receipt card slides in with amounts, fee, rate, funding/payout references, tx hash + Snowtrace link, `verifiedAt`, receipt ID, issued time and the honest summary line. Actions: **Send another**, **Copy link**.
+- Completion headline comes from i18n ("Demo completed — THB payout simulated."). The receipt card also shows the server's `receipt.summary` verbatim in small text (English only; it is evidence, not UI copy).
 - Back button after paying lands on tracking, never on a payable form (`router.replace`).
 
 ### Status to UI mapping
@@ -128,20 +131,22 @@ Each piece 150–300ms, ease-out, transform/opacity only; whole sequence about 6
 
 ## 5. Code organisation
 
+Paths are relative to the backend repo root (section 7); `@/*` maps to `src/*`.
+
 ```
-app/
-  layout.tsx                 header, fonts, LanguageProvider
+src/app/
+  layout.tsx                 header, fonts, LanguageProvider (replaces backend placeholder)
   globals.css                tokens
-  page.tsx                   Send + Review (client state machine: step 1 | 2)
+  page.tsx                   Send + Review (client state machine: step 1 | 2) (replaces placeholder)
   transfers/[id]/page.tsx    Track + Receipt
-components/
+src/components/
   brand/Logo.tsx
   send/       AmountField, RecipientCard, EstimateCard
   review/     ReviewCard, ExpiryCountdown, BankSheet
   track/      Timeline, TimelineStep, EvidenceTag, Receipt, NotifiedChip, Details
   demo/       PresenterPanel
   ui/         shadcn primitives
-lib/
+src/web/                     all frontend logic, kept apart from backend src/lib
   api/types.ts        contract types + zod schemas (snapshot, quote, recipient, session, error envelope)
   api/client.ts       ApiClient interface
   api/real.ts         fetch implementation
@@ -152,9 +157,10 @@ lib/
   idempotency.ts      stable keys in sessionStorage
   useTransferPolling.ts
   i18n/en.ts, th.ts, useT.ts
+tests/web/                   frontend unit tests (backend vitest already includes tests/**)
 ```
 
-Frontend touches only `app/` pages/layout, `components/`, `lib/` above and `globals.css`. It never adds files under `app/api/`.
+Frontend touches only the `src/app` pages/layout/globals above, `src/components/`, `src/web/`, `tests/web/`, and the Tailwind/shadcn config files. It never touches `src/app/api/`, `src/server/`, `src/db/`, `src/domain/`, `src/lib/`, `src/settlement/` or `db/`. Frontend code may not import backend modules (they are `server-only`); it has its own contract types.
 
 ### ApiClient
 
@@ -188,7 +194,8 @@ NEXT_PUBLIC_REAL_ENDPOINTS=session,recipients,quotes   # unlisted groups stay mo
 | `quotes` | `POST /api/quotes` | 2 |
 | `transfers` | `POST /api/transfers`, `GET /api/transfers/{id}`, `POST /api/demo/transfers/{id}/funding`, `.../advance`, `.../payout-retry` | 3 (settlement fields filled by 4's module inside `advance`) |
 
-- `real.ts` sends `Content-Type: application/json`, `Idempotency-Key` where required, `credentials: "same-origin"`; unwraps `{ data, meta }`; throws a typed `ApiError` with `code`, `retryable`, `fieldErrors`, `requestId`.
+- Switch order is fixed by the backend: it only accepts a quote stored in its own DB under the same `demo_session` cookie. So `session`, `recipients` and `quotes` flip to real together (person 2), and `transfers` flips after them. Real quote + mock transfer works; mock quote + real transfer never does. Until person 2 lands, the mock is the daily driver; backend `scripts/demo-seed.mjs` + `scripts/demo-flow.sh` show real snapshots for reference.
+- `real.ts` calls relative `/api/...` paths (same origin, so the backend's `Origin` check and session cookie work with no CORS or proxy). It sends `Content-Type: application/json`, `Idempotency-Key` where required, `credentials: "same-origin"`, and `{}` as the body of every body-less POST (backend bodies are strict empty objects); unwraps `{ data, meta }`; throws a typed `ApiError` with `code`, `retryable`, `fieldErrors`, `requestId`. Any 2xx is success (`advance` returns 202 while work is pending).
 - In real mode every response is validated with the zod schemas. Mismatch in development: red toast naming the endpoint and field; in production: log and continue with the hold state.
 - Mixed mode (real quote, mock transfer) works because the client caches each returned quote for the mock to resolve.
 - Error code → UI action: `INVALID_INPUT` field errors; `UNAUTHENTICATED` new session; `QUOTE_EXPIRED` "Get new quote"; `IDEMPOTENCY_CONFLICT` / `QUOTE_ALREADY_ACCEPTED` / `INVALID_STATE` re-read the transfer and render it; `RATE_LIMITED` back off (respect `Retry-After`); `DEPENDENCY_UNAVAILABLE` keep state, retry read; `INTERNAL_ERROR` show `requestId`.
@@ -202,7 +209,7 @@ NEXT_PUBLIC_REAL_ENDPOINTS=session,recipients,quotes   # unlisted groups stay mo
 - Honours `demoScenario`.
 - Persists to `localStorage`, so refresh-resume can be rehearsed in mock mode.
 - Never fakes chain evidence: tx hash shown as `mock-…`, `explorerUrl` null, no Snowtrace link, `MOCK DATA` banner visible.
-- On completion, the mock sends the ntfy push from the browser (`fetch` POST to `https://ntfy.sh/<NEXT_PUBLIC_NTFY_TOPIC>`) and sets `notification.status = "SENT"`, so the phone moment can be rehearsed before the backend exists.
+- On completion, the mock sends the ntfy push from the browser (`fetch` POST to `https://ntfy.sh/<NEXT_PUBLIC_NTFY_TOPIC>`) and sets `notification.status` to `SENT` (with `sentAt`) or `FAILED`; with no topic it sets `DISABLED`. Before completion it is `NOT_STARTED`. Same enum as the real backend, so the phone moment can be rehearsed in mock mode.
 
 ### Money
 
@@ -227,20 +234,24 @@ NEXT_PUBLIC_REAL_ENDPOINTS=session,recipients,quotes   # unlisted groups stay mo
 - Message on completion: "Demo Recipient received ฿343.00 · USDC settled on Avalanche Fuji · THB payout simulated." Synthetic data only; ntfy.sh topics are public to anyone who guesses the name.
 - Frontend shows the chip from snapshot evidence only.
 
-**Contract requests for the backend (person 3):**
+**Landed in backend v1:** every snapshot has `notification: { channel: "NTFY", status: "NOT_STARTED" | "PENDING" | "SENT" | "FAILED" | "DISABLED", sentAt: string | null }` (always present). The `/advance` call that completes the transfer sends one push server-side (`NTFY_TOPIC` env); a failed push never blocks completion and a later `/advance` retries it.
 
-1. Add `notification: { "channel": "NTFY", "status": "NOT_SENT" | "SENT" | "FAILED" }` to the transfer snapshot.
-2. Send the ntfy push server-side once when status becomes `COMPLETED_SIMULATED`; a failed push must never block or change the transfer status.
+The chip shows only on `SENT`. `NOT_STARTED`, `PENDING`, `FAILED` and `DISABLED` show nothing: the transfer is complete either way, and a failed push is not the sender's problem.
 
-Until these land, real mode hides the chip rather than guessing.
+## 7. App location and tooling
 
-## 7. Scaffold coordination
+The backend (person 3) is a standalone, API-only Next.js app in `4rtem1sss/U-hackathon_backend`. Its mutation routes require a same-origin `Origin` header and the `demo_session` cookie, and it sends no CORS headers. So the frontend lives **inside that repo** as the same Next.js app: one origin, one deploy, nothing to configure.
 
-No Next.js app exists in the repo yet (checked 2026-10-16). Person 3 as integration lead normally owns the scaffold. Frontend starts immediately with framework-free files (`lib/money.ts`, `lib/status.ts`, `lib/api/*`, `lib/i18n/*`). If person 3 has not pushed a scaffold within ~30 minutes, person 1 creates it (Next.js App Router, TypeScript, Tailwind, shadcn/ui, pnpm or the team's agreed package manager) and announces temporary ownership of global config.
+- Branch: `frontend-merge-part3`, created from `part3/backend-core`; merged after person 3 merges his branch. Spec and plan docs stay in the U-Hackathon repo.
+- Needs push access to the backend repo (or a fork + PR). Tell person 3 before starting: frontend adds Tailwind v4 + shadcn/ui config and replaces the placeholder `src/app/layout.tsx` and `src/app/page.tsx`.
+- Use the backend's toolchain as is: pnpm 10.28 (`packageManager`), Next 16.4.1, React 19.3, zod 4, vitest 5. Node: backend pins 22; the dev machine has 24, which pnpm only warns about. Install pnpm with `npm i -g pnpm@10.28.0`.
+- Next 16 has breaking changes (see the repo's `AGENTS.md`): read `node_modules/next/dist/docs/` before writing framework code.
+- The backend tsconfig is strict (`strict`, `noUncheckedIndexedAccess`, tests type-checked) and CI runs lint, typecheck, test and build. All frontend code and tests must pass all four.
+- Frontend adds: `tailwindcss` v4 + `@tailwindcss/postcss`, shadcn (button, dialog, sonner), `lucide-react`. No other global config changes.
 
 ## 8. Testing and walkthrough
 
-- Vitest unit tests: `money.ts` (parse rules, fee rounding up, THB floor, $1 and $100 bounds, $10 → ฿343.00), `status.ts` (every status and substatus maps to a defined view model, unknown status → hold), zod schemas accept the contract's documented examples.
+- Vitest unit tests in `tests/web/`: `money.ts` (parse rules, fee rounding up, THB floor, $1 and $100 bounds, $10 → ฿343.00), `status.ts` (every status and substatus maps to a defined view model, unknown status → hold), zod schemas accept the contract's documented examples **and a fixture copied from backend `toSnapshot` output** (so backend drift fails CI).
 - Browser walkthrough checklist (`docs/walkthrough.md`), run in mock mode first, then again with real endpoints:
   1. Happy path end to end; receipt amounts reconcile with the review screen.
   2. Funding declined scenario stops at step 1, no chain step.
@@ -266,8 +277,8 @@ Dark mode, recipient management, account/login screens, reverse THB→USD direct
 
 ## 11. Build order
 
-1. `lib/` core: money, status, api types + zod, mock, i18n (no framework needed).
-2. Scaffold or join the shared app; tokens, fonts, header, logo placeholder.
+1. `src/web/` core: money, status, api types + zod, mock, i18n (no framework needed).
+2. Join the backend repo on `frontend-merge-part3` (section 7); add Tailwind/shadcn; tokens, fonts, header, logo placeholder.
 3. Screen 1 → 2 → bank sheet → screen 3 with mock data; full click-through.
 4. Presenter panel, failure states, ntfy from mock.
 5. Motion (wow sequence).
