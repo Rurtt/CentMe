@@ -17,7 +17,7 @@ All code paths below are in `D:\U-hackathon_backend`. Run commands from that fol
 - Frontend only. Do not touch `src/app/api/`, `src/server/`, `src/db/`, `src/domain/`, `src/lib/`, `src/settlement/`, `db/`.
 - Bank labels must equal `THAI_BANKS` labels in `src/domain/recipients.ts`: `Kasikorn Bank`, `SCB`, `Bangkok Bank`, `Krungthai`, `Krungsri`, `ttb`, `GSB`.
 - Account input: digits only, max 12. Validation stays 10-12 (`newRecipientBody`).
-- Wallet start balance `"5000"` minor units = $50.00. Keys: `centme:walletMinor`, `centme:paySource:<transferId>`, `centme:walletDebited:<transferId>`, all in `sessionStorage` via `browserStorage("session")`.
+- Wallet start balance `"5000"` minor units = $50.00. Keys: `centme:walletMinor`, `centme:paySource:<transferId>`, `centme:walletDebited:<transferId>`, `centme:walletTransfers` (approved reset-cleanup index), all in `sessionStorage` via `browserStorage("session")`.
 - Card label `Visa ••4821`, invoice number `INV-<receipt id>`: same text in EN and TH.
 - No emoji icons. Lucide only. Badges are `aria-hidden`; the bank name stays visible text.
 - Every new EN key has a TH key (parity test in `tests/web/i18n/translate.test.ts`).
@@ -346,12 +346,14 @@ git commit -m "feat(web): bank picker with logos and a 12-digit account cap"
   - `debitForTransfer(transferId: string, amountMinor: string, store?): void` — debits only if the stored source is `WALLET`, and only once per transfer.
   - `resetWallet(store?): void`
 
-- [ ] **Step 1: Write the failing test** `tests/web/wallet.test.ts`
+- [x] **Step 1: Write the failing test** `tests/web/wallet.test.ts`
 
 ```ts
 import { describe, expect, it } from "vitest";
+import { markDrifted } from "@/web/api/drift";
+import { snapshotWith } from "@/web/api/fixtures";
 import { memoryStore } from "@/web/storage";
-import { canPayFromWallet, debitForTransfer, getBalanceMinor, getPaySource, resetWallet, setPaySource } from "@/web/wallet";
+import { canPayFromWallet, reconcileFunding, debitForTransfer, getBalanceMinor, getPaySource, resetWallet, setPaySource } from "@/web/wallet";
 
 describe("wallet", () => {
   it("starts at $50.00", () => {
@@ -395,24 +397,88 @@ describe("wallet", () => {
     expect(getBalanceMinor(s)).toBe(5000n);
   });
 });
+
+describe("wallet after presenter reset", () => {
+  it("debits a new transfer when mock reset reuses a transfer id", () => {
+    const s = memoryStore();
+    setPaySource("trf_1", "WALLET", s);
+    debitForTransfer("trf_1", "1000", s);
+    resetWallet(s);
+    setPaySource("trf_1", "WALLET", s);
+    debitForTransfer("trf_1", "1000", s);
+    expect(getBalanceMinor(s)).toBe(4000n);
+  });
+});
+
+it("reset clears tracked sources and debit records, preserving unrelated storage", () => {
+  const s = memoryStore();
+  s.setItem("centme:scenario", "HAPPY_PATH");
+  setPaySource("wallet", "WALLET", s);
+  setPaySource("card", "CARD", s);
+  debitForTransfer("wallet", "1000", s);
+  resetWallet(s);
+  expect(getPaySource("wallet", s)).toBeNull();
+  expect(getPaySource("card", s)).toBeNull();
+  expect(s.getItem("centme:walletDebited:wallet")).toBeNull();
+  expect(s.getItem("centme:scenario")).toBe("HAPPY_PATH");
+});
+
+it("recovers an accepted wallet debit from a fetched snapshot once", () => {
+  const s = memoryStore();
+  const accepted = snapshotWith({ status: "COMPLETED_SIMULATED", funding: { status: "ACCEPTED" } });
+  setPaySource(accepted.id, "WALLET", s);
+  reconcileFunding(accepted, s);
+  reconcileFunding(accepted, s);
+  expect(getBalanceMinor(s)).toBe(4000n);
+});
+
+it("never reconciles a debit from declined or pending funding", () => {
+  const s = memoryStore();
+  const pending = snapshotWith({ status: "FUNDING_PENDING", funding: { status: "PENDING" } });
+  setPaySource(pending.id, "WALLET", s);
+  reconcileFunding(pending, s);
+  reconcileFunding(snapshotWith({ status: "FUNDING_FAILED", funding: { status: "DECLINED" } }), s);
+  expect(getBalanceMinor(s)).toBe(5000n);
+});
+
+it("never debits a snapshot rejected by contract validation", () => {
+  const s = memoryStore();
+  const invalid = markDrifted(snapshotWith({ status: "COMPLETED_SIMULATED", funding: { status: "ACCEPTED" } }));
+  setPaySource(invalid.id, "WALLET", s);
+  reconcileFunding(invalid, s);
+  expect(getBalanceMinor(s)).toBe(5000n);
+});
 ```
 
-- [ ] **Step 2:** `pnpm vitest run tests/web/wallet.test.ts` — expect FAIL (cannot resolve `@/web/wallet`).
+- [x] **Step 2:** `pnpm vitest run tests/web/wallet.test.ts` — expect FAIL (cannot resolve `@/web/wallet`).
 
-- [ ] **Step 3: Implement** `src/web/wallet.ts`
+- [x] **Step 3: Implement** `src/web/wallet.ts`
 
 ```ts
+import { isDrifted } from "./api/drift";
+import type { TransferSnapshot } from "./api/types";
 import { browserStorage, type KeyValueStore } from "./storage";
 
 /** Fake CentMe wallet for the demo. Lives in sessionStorage; the server never knows about it. */
 export type PaySource = "CARD" | "WALLET";
 
 const BALANCE_KEY = "centme:walletMinor";
+const TRANSFERS_KEY = "centme:walletTransfers";
 const START_MINOR = 5000n; // $50.00
 const sourceKey = (id: string) => `centme:paySource:${id}`;
 const debitedKey = (id: string) => `centme:walletDebited:${id}`;
 const session = () => browserStorage("session");
 
+
+/** Track keys because KeyValueStore deliberately has no storage-wide enumeration. */
+function trackedTransfers(store: KeyValueStore): string[] {
+  try {
+    const ids: unknown = JSON.parse(store.getItem(TRANSFERS_KEY) ?? "[]");
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
 export function getBalanceMinor(store: KeyValueStore = session()): bigint {
   const raw = store.getItem(BALANCE_KEY);
   return raw !== null && /^\d+$/.test(raw) ? BigInt(raw) : START_MINOR;
@@ -423,6 +489,8 @@ export function canPayFromWallet(amountMinor: string, store: KeyValueStore = ses
 }
 
 export function setPaySource(transferId: string, source: PaySource, store: KeyValueStore = session()): void {
+  const ids = trackedTransfers(store);
+  if (!ids.includes(transferId)) store.setItem(TRANSFERS_KEY, JSON.stringify([...ids, transferId]));
   store.setItem(sourceKey(transferId), source);
 }
 
@@ -439,14 +507,25 @@ export function debitForTransfer(transferId: string, amountMinor: string, store:
   store.setItem(debitedKey(transferId), "1");
 }
 
+/** Recover accepted funding after a lost response; once-only markers also cover polling and refresh. */
+export function reconcileFunding(snapshot: TransferSnapshot, store: KeyValueStore = session()): void {
+  if (!isDrifted(snapshot) && snapshot.funding.status === "ACCEPTED") {
+    debitForTransfer(snapshot.id, snapshot.amounts.sourceDebitMinor, store);
+  }
+}
 export function resetWallet(store: KeyValueStore = session()): void {
+  for (const id of trackedTransfers(store)) {
+    store.removeItem(sourceKey(id));
+    store.removeItem(debitedKey(id));
+  }
+  store.removeItem(TRANSFERS_KEY);
   store.removeItem(BALANCE_KEY);
 }
 ```
 
-- [ ] **Step 4:** `pnpm vitest run tests/web/wallet.test.ts` — expect PASS.
+- [x] **Step 4:** `pnpm vitest run tests/web/wallet.test.ts` — expect PASS.
 
-- [ ] **Step 5: i18n.** In `src/web/i18n/en.ts` replace the `sheet.*` block with:
+- [x] **Step 5: i18n.** In `src/web/i18n/en.ts` replace the `sheet.*` block with:
 
 ```ts
   "sheet.title": "Choose how to pay",
@@ -471,7 +550,7 @@ In `src/web/i18n/th.ts` replace its `sheet.*` block with (keep the existing TH `
 
 Then `grep -rn "sheet.from\|sheet.account" src` must return nothing.
 
-- [ ] **Step 6: BankSheet.** Replace `src/components/review/BankSheet.tsx` with:
+- [x] **Step 6: BankSheet.** Replace `src/components/review/BankSheet.tsx` with:
 
 ```tsx
 "use client";
@@ -555,7 +634,7 @@ function SourceOption(props: {
 
 If `--brand` is not the CSS variable name in `src/app/globals.css`, use the variable the `text-brand` utility maps to.
 
-- [ ] **Step 7: ReviewStep.** In `src/components/review/ReviewStep.tsx`:
+- [x] **Step 7: ReviewStep.** In `src/components/review/ReviewStep.tsx`:
 
   a. Import: `import { canPayFromWallet, getBalanceMinor, setPaySource, type PaySource } from "@/web/wallet";`
 
@@ -587,7 +666,7 @@ onClick={() => { setBalanceMinor(getBalanceMinor()); setSource("CARD"); setSheet
         onSourceChange={setSource}
 ```
 
-- [ ] **Step 8: TrackView.** In `src/components/track/TrackView.tsx` `runFunding`, replace
+- [x] **Step 8: TrackView.** In `src/components/track/TrackView.tsx` `runFunding`, replace
 
 ```tsx
       accept(await api.simulateFunding(id, getOrCreateKey(`funding:${id}`)));
@@ -598,13 +677,13 @@ with
 ```tsx
       const funded = await api.simulateFunding(id, getOrCreateKey(`funding:${id}`));
       // Declined funding moves no money, so the wallet is only debited on ACCEPTED (once per transfer).
-      if (funded.funding.status === "ACCEPTED") debitForTransfer(id, funded.amounts.sourceDebitMinor);
+      reconcileFunding(funded);
       accept(funded);
 ```
 
-and add `import { debitForTransfer } from "@/web/wallet";`.
+and add `import { reconcileFunding } from "@/web/wallet";`. Also reconcile fetched snapshots in a `useEffect` keyed by `snapshot` to recover accepted funding after a lost response; contract-drift snapshots are ignored by the helper.
 
-- [ ] **Step 9: Presenter reset.** In `src/components/demo/PresenterPanel.tsx`, the reset button's onClick becomes
+- [x] **Step 9: Presenter reset.** In `src/components/demo/PresenterPanel.tsx`, the reset button's onClick becomes
 
 ```tsx
         onClick={() => {
@@ -616,11 +695,11 @@ and add `import { debitForTransfer } from "@/web/wallet";`.
 
 with `import { resetWallet } from "@/web/wallet";`.
 
-- [ ] **Step 10:** `pnpm typecheck && pnpm lint && pnpm test` — all pass (i18n parity included).
+- [x] **Step 10:** `pnpm typecheck && pnpm lint && pnpm test` — all pass (i18n parity included).
 
-- [ ] **Step 11: Manual check** (`pnpm dev`): Pay $10 with the wallet; the sheet showed "Balance $50.00". Send another $10 by wallet: the sheet shows $40.00. Set the amount to $45: the wallet radio is disabled and says "Balance $30.00 · Not enough balance" in red. Refresh a finished wallet transfer page: the balance does not drop again. Presenter `FUNDING_DECLINED` + wallet: balance unchanged. Presenter reset: balance back to $50.00.
+- [x] **Step 11: Manual check** (`pnpm dev`): Pay $10 with the wallet; the sheet showed "Balance $50.00". Send another $10 by wallet: the sheet shows $40.00. Set the amount to $45: the wallet radio is disabled and says "Balance $30.00 · Not enough balance" in red. Refresh a finished wallet transfer page: the balance does not drop again. Presenter `FUNDING_DECLINED` + wallet: balance unchanged. Presenter reset: balance back to $50.00.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add src/web/wallet.ts src/components/review/BankSheet.tsx src/components/review/ReviewStep.tsx src/components/track/TrackView.tsx src/components/demo/PresenterPanel.tsx src/web/i18n/en.ts src/web/i18n/th.ts tests/web/wallet.test.ts
@@ -639,7 +718,7 @@ git commit -m "feat(web): pay by card or CentMe wallet in the bank sheet"
 **Interfaces:**
 - Consumes: `getPaySource(transferId): PaySource | null` (Task 3), `Logo` from `@/components/brand/Logo` (exists; check its props before use).
 
-- [ ] **Step 1: i18n.** Add to `en.ts` (receipt block):
+- [x] **Step 1: i18n.** Add to `en.ts` (receipt block):
 
 ```ts
   "receipt.invoiceNo": "Invoice no.",
@@ -659,7 +738,7 @@ and `th.ts`:
   "action.PRINT": "พิมพ์ / บันทึก PDF",
 ```
 
-- [ ] **Step 2: Receipt.** In `src/components/track/Receipt.tsx`:
+- [x] **Step 2: Receipt.** In `src/components/track/Receipt.tsx`:
 
   a. Imports: add `Printer` to the lucide import; add `import { useState } from "react";`, `import { Logo } from "@/components/brand/Logo";`, `import { getPaySource } from "@/web/wallet";`.
 
@@ -720,7 +799,7 @@ and `th.ts`:
         </Button>
 ```
 
-- [ ] **Step 3: Print CSS.** Append to `src/app/globals.css`:
+- [x] **Step 3: Print CSS.** Append to `src/app/globals.css`:
 
 ```css
 /* Print / Save PDF: only the receipt (#invoice) goes on paper. */
@@ -738,11 +817,11 @@ and `th.ts`:
 }
 ```
 
-- [ ] **Step 4:** `pnpm typecheck && pnpm lint && pnpm test` — all pass.
+- [x] **Step 4:** `pnpm typecheck && pnpm lint && pnpm test` — all pass.
 
-- [ ] **Step 5: Manual check:** finish a transfer, click Print / Save PDF. The preview is one page: logo, Receipt + invoice no., amounts, fee, rate, sender, recipient, paid from, references, tx hash + full Snowtrace URL, IDs. No header, footer, timeline, Details, buttons, toasts, or presenter panel. Repeat in TH.
+- [x] **Step 5: Manual check:** finish a transfer, click Print / Save PDF. The preview is one page: logo, Receipt + invoice no., amounts, fee, rate, sender, recipient, paid from, references, tx hash + full Snowtrace URL, IDs. No header, footer, timeline, Details, buttons, toasts, or presenter panel. Repeat in TH.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/track/Receipt.tsx src/app/globals.css src/web/i18n/en.ts src/web/i18n/th.ts
@@ -753,18 +832,18 @@ git commit -m "feat(web): printable invoice on the receipt"
 
 ### Task 5: Walkthrough and wrap-up
 
-- [ ] **Step 1:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build` — all pass. Paste the summary lines in the report.
-- [ ] **Step 2: Browser walkthrough** (mock mode; 1280px and 375px; EN and TH), from the spec's Testing section:
+- [x] **Step 1:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build` — all pass. Paste the summary lines in the report.
+- [x] **Step 2: Browser walkthrough** (mock mode; 1280px and 375px; EN and TH), from the spec's Testing section:
   - Pick SCB using only the keyboard, badge on the card; 15 typed digits show as 12.
   - $10 by wallet: balance $40.00, receipt "Paid from: CentMe wallet".
   - $45 next: wallet disabled with "Not enough balance"; pay by card; receipt "Paid from: Visa ••4821".
   - Presenter `FUNDING_DECLINED` + wallet: balance unchanged.
   - Print preview: one clean page.
   - At 375px the sheet's two options and the receipt's three buttons stack with no horizontal scroll.
-- [ ] **Step 3:** Append results to `docs/superpowers/plans/2026-10-16-centme-pay-source-invoice.md` (U-Hackathon repo) under a `## Walkthrough results` heading and commit there: `docs: walkthrough results for pay source + invoice`.
+- [x] **Step 3:** Append results to `docs/superpowers/plans/2026-10-16-centme-pay-source-invoice.md` (U-Hackathon repo) under a `## Walkthrough results` heading and commit there: `docs: walkthrough results for pay source + invoice`.
 - [ ] **Step 4:** Push `feat/pay-source-invoice` and open a PR into the branch `feat/ui-polish-recipient` targets, only after Pong says yes.
 
-## Execution checkpoint — 2026-10-16
+## Execution checkpoint — 2026-10-16 (historical; resolved below)
 
 Implementation repo: `D:\U-hackathon_backend`, branch `feat/pay-source-invoice`, base `e071489` (`centme-main`). `feat/ui-polish-recipient` is already merged and its source contents match the base exactly. Baseline: 503 passed, 121 skipped; typecheck passed. Handoff committed in U-Hackathon as `6ca8d79`.
 
@@ -775,3 +854,69 @@ Implementation repo: `D:\U-hackathon_backend`, branch `feat/pay-source-invoice`,
 - Tasks 4 and 5: not started. No push or PR.
 
 Environment notes: installed Node v24.11.1 emits an engine warning because the project requests Node >=22 <23. Existing dev server on port 3000 uses real endpoints. Browser checks ran against an isolated mock production build on port 3100 with notifications disabled; that server has been stopped. The existing dev server and `.env.local` were not changed. Impeccable context launcher could not install its engine under the sandbox; existing source and palette were inspected directly. Playwright MCP profile was occupied; an isolated headless Playwright browser was used instead.
+
+## Walkthrough results
+
+Completed 2026-10-16 in `D:\U-hackathon_backend`, branch `feat/pay-source-invoice`. The earlier checkpoint records the pause before approval; its reset blocker is resolved. Implementation is committed locally. Push and PR remain intentionally pending Pong's approval.
+
+| Task | Result | Commit |
+| --- | --- | --- |
+| 0 | Clean baseline; 503 passed / 121 skipped; typecheck passed. Base `e071489` already contains the merged recipient-polish branch with identical source. | Branch created |
+| 1 | Banks RED (missing module) then 3 tests GREEN. Full suite 506 passed / 121 skipped; typecheck and lint passed. | `289038d` |
+| 2 | Sanitizer RED (3 failures) then 7 format tests GREEN. Full suite 509 passed / 121 skipped; typecheck and lint passed. Keyboard picker, validation focus, and account cap checked in browser. | `471c1a2` |
+| 3 | Wallet/reset regressions RED then 9 tests GREEN. Full suite 518 passed / 121 skipped; typecheck, lint, build and browser wallet/card/decline/refresh/reset checks passed. | `584aa7d` |
+| 4 | Receipt rendering RED then 5 tests GREEN, including final print amount before animation. Full suite 523 passed / 121 skipped; typecheck and lint passed. | `ba1d31d` |
+| 5 | Recovery tests RED then wallet 12 tests GREEN. Final suite 526 passed / 121 skipped; typecheck, lint and production build passed. Final browser run: 84 passed, 0 failed. | `a96a3e4` |
+
+Files changed per task (all relative to the implementation repo):
+
+- Task 1: `src/web/banks.ts`, `src/components/common/BankLogo.tsx`, `src/components/send/RecipientCard.tsx`, `tests/web/banks.test.ts`.
+- Task 2: `src/web/format.ts`, `src/components/ui/select.tsx`, `src/components/send/RecipientForm.tsx`, `tests/web/format.test.ts`.
+- Task 3: `src/web/wallet.ts`, `src/components/review/BankSheet.tsx`, `src/components/review/ReviewStep.tsx`, `src/components/track/TrackView.tsx`, `src/components/demo/PresenterPanel.tsx`, `src/web/i18n/en.ts`, `src/web/i18n/th.ts`, `tests/web/wallet.test.ts`.
+- Task 4: `src/components/track/Receipt.tsx`, `src/app/globals.css`, `src/web/i18n/en.ts`, `src/web/i18n/th.ts`, `tests/web/receipt.test.ts`.
+- Task 5 QA fixes: `src/components/send/RecipientForm.tsx`, `src/components/track/TrackView.tsx`, `src/web/wallet.ts`, `tests/web/wallet.test.ts`. This plan records the results in the documentation repo.
+
+Final check summaries:
+
+```text
+pnpm typecheck: PASS (tsc --noEmit)
+pnpm lint: PASS (eslint .)
+pnpm test: Test Files 34 passed | 12 skipped (46)
+           Tests 526 passed | 121 skipped (647)
+pnpm build: PASS; compiled successfully, static generation and route collection completed
+Browser: TOTAL 84 passed, 0 failed
+PDFs: 5 files, each 1 page; receipt-only text; full Snowtrace URL present in testnet fixture
+```
+
+Browser coverage ran in mock mode with notifications disabled, separately from the existing live-mode server. Each combination (EN/TH × 1280px/375px) passed:
+
+- Keyboard-only SCB selection, visible badge, bank-error focus, and 15 typed digits capped at 12.
+- Native clipboard pastes `123-456-7890` and `12 3456 7890 123` correctly become `1234567890` and `123456789012`.
+- Native radio arrow-key selection, initial $50.00 wallet, $10.00 wallet payment reducing balance to $40.00, and correct paid-from receipt row.
+- Normal refresh without a second debit; accepted fetched snapshot with missing debit marker reconciles once, with another refresh leaving $40.00.
+- Missing stored source hides the paid-from row.
+- $45.00 wallet payment disabled after spending $10.00, with localized insufficient-balance text; card succeeds and leaves wallet unchanged.
+- Declined funding leaves wallet unchanged.
+- Sheet and receipt have no horizontal overflow at either width; mobile receipt actions stack. No runtime page errors.
+
+The earlier Task 3 browser run additionally verified a second $10.00 wallet payment (balance $30.00), presenter reset restoring $50.00, and a fresh wallet payment debiting correctly after the mock counter reused transfer IDs.
+
+Print verification: EN/TH at both widths produced clean A4 single-page PDFs with the wordmark, invoice number, parties, amounts, fee, rate and references. Header, footer, timeline, Details, action buttons, presenter panel and toasts were absent. A controlled testnet snapshot fixture additionally verified the full Snowtrace URL on paper; it is not evidence of a real chain transaction. PDF pages were rendered to PNG and inspected. The print button calls `window.print()`.
+
+Corrections and rulings:
+
+1. Start from merged `centme-main`: its source matches `feat/ui-polish-recipient` exactly. This avoids switching back to stale branch metadata; no source difference was accepted.
+2. Pong approved reset cleanup after the failing reused-ID regression. `centme:walletTransfers` indexes wallet-owned source/debit keys because `KeyValueStore` does not enumerate storage. Reset removes those keys and balance, preserving unrelated session data. Without this correction, new transfers after presenter reset could skip debits.
+3. Native `maxLength` cuts formatted clipboard text before `onChange`. The explicit `onPaste` path sanitizes the whole insertion before applying the digit cap, including the existing selection. Without it, a valid formatted 12-digit paste loses digits.
+4. Invoice print output uses the final destination amount independently of the screen counter and prints text in black. Without it, printing during animation could record an intermediate amount.
+5. One fresh final reviewer found accepted funding could arrive without its POST response reaching the browser. `reconcileFunding` now handles both responses and fetched snapshots, with once-only markers and an ACCEPTED-only gate. Pending, declined and contract-drift snapshots do not debit. Without it, a completed wallet transfer could leave balance unchanged.
+6. The reviewer did not independently judge native print dialogs, rendered layout or screen-reader behavior. Layout and Chromium print-to-PDF were checked separately. Actual OS print-dialog interaction and a screen-reader walkthrough were not run; platform-specific issues could remain. No minor review findings were deferred.
+
+Limits and intentionally skipped actions:
+
+- The 121 skipped tests are unchanged from baseline. No protected backend paths, dependency files or environment files were modified.
+- Local Node v24.11.1 emits the existing engine warning because the project requests Node >=22 <23; all executed checks passed.
+- No push, PR, merge or deployment. The feature branch remains in the user's implementation checkout.
+- The temporary mock QA server was stopped. The existing dev server and `.env.local` were left in place.
+
+Browser scripts, JSON results, screenshots and QA PDFs are saved under `C:\Users\Admin\.codex\visualizations\2026\10\15\01a1416f-ce66-70c1-a732-86915ccc6c3f\centme-invoice\`. Final functional evidence is `walkthrough-final.json` (84 passed / 0 failed). Earlier JSON reports preserve the detected defect and test-harness corrections; final results supersede those.
