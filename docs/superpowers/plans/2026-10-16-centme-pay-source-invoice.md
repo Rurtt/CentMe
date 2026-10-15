@@ -920,3 +920,14 @@ Limits and intentionally skipped actions:
 - The temporary mock QA server was stopped. The existing dev server and `.env.local` were left in place.
 
 Browser scripts, JSON results, screenshots and QA PDFs are saved under `C:\Users\Admin\.codex\visualizations\2026\10\15\01a1416f-ce66-70c1-a732-86915ccc6c3f\centme-invoice\`. Final functional evidence is `walkthrough-final.json` (84 passed / 0 failed). Earlier JSON reports preserve the detected defect and test-harness corrections; final results supersede those.
+
+## Integration results — 2026-10-16
+
+Pong authorized pulling Fuji, fixing the existing CI failure separately, and merging the feature. The earlier no-push/no-PR checkpoint is historical and superseded by this authorization.
+
+- Merged `Rurtt/CentMe` main (`d3c40a6`, including real Fuji settlement) into `feat/pay-source-invoice`: local merge commit `d47f7e0`.
+- Separate test-only fix `09f1254`: add the existing `0004_enable_rls.sql` to `tests/db/migrations.test.ts` expected history. Production backend, database migrations, config and dependencies remain identical to the reviewed GitHub main.
+- Local combined checks passed: typecheck, lint, production build, 541 tests passed / 122 skipped without a local PostgreSQL test server.
+- Opened and merged https://github.com/Rurtt/CentMe/pull/2 only after both GitHub CI runs and the Vercel preview passed. CI exercised PostgreSQL-backed tests successfully; all 50 test files and 663 tests passed, including the previously failing migration suite.
+- GitHub merge commit: `285e80463f592f6abce35360d9774a9072e50814`.
+- Local `D:\U-hackathon_backend` switched to `main` and fast-forwarded to that merge. Its code tree matches the tested PR head. The feature branch is retained.
