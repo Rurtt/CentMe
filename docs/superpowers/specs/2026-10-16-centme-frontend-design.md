@@ -15,7 +15,7 @@ Scope: send, quote, tracking, receipt and browser walkthrough for the USD-to-THB
 
 ## 1. Goals and constraints
 
-- Product name: **CentMe**. Logo pending; placeholder wordmark until supplied.
+- Product name: **CentMe**. Logo supplied 2026-10-16: source sheet `ChatGPT Image Oct 16, 2026, 01_02_33 AM.png`; cut-outs with transparent background in `assets/logo/` (`centme-wordmark.png`, `centme-mark.png`, `centme-app-icon.png`). Copy them to the app's `public/brand/`.
 - Easiest possible sender flow that still feels like a real bank: one deliberate review-and-confirm moment before money moves.
 - Laptop-first (projector demo). Must still work at 375px width for the phone/receipt view.
 - English default, TH/EN toggle in the header.
@@ -30,7 +30,7 @@ Two routes, three screens.
 
 ### Header (all screens)
 
-CentMe logo (`components/brand/Logo.tsx`), `TEST MODE` pill, TH/EN toggle. In mock mode, a `MOCK DATA` banner sits under the header.
+CentMe wordmark image (`components/brand/Logo.tsx` renders `public/brand/centme-wordmark.png` via `next/image`; app icon as favicon), `TEST MODE` pill, TH/EN toggle. In mock mode, a `MOCK DATA` banner sits under the header.
 
 ### Screen 1: Send (`/`, step 1)
 
@@ -87,7 +87,7 @@ Opened with `D` key or `?demo=1`. Contains: scenario picker (`HAPPY_PATH`, `FUND
 
 ## 3. Ease-of-use rules
 
-- One primary action per screen (lime button). Everything else visually quieter.
+- One primary action per screen (green `--cta` button). Everything else visually quieter.
 - Smart defaults: amount prefilled, recipient preselected. Happy path is Continue → Pay → Confirm.
 - Money in human words first ("They receive ฿343.00"); fee and rate in one calm line.
 - Plain-language status, never raw enums. Tech details behind "Details".
@@ -99,19 +99,22 @@ Opened with `D` key or `?demo=1`. Contains: scenario picker (`HAPPY_PATH`, `FUND
 
 ## 4. Visual style
 
-Chosen with `ui-ux-pro-max` (fonts, fintech rules); default palette suggestion rejected as off-brief. All values are tokens in one place (`app/globals.css` CSS variables + Tailwind theme) so tuning after the first click-through is cheap.
+Fonts and fintech rules chosen with `ui-ux-pro-max`. Palette taken from the logo (navy `#2E4057`, green `#8BC34A`, amber `#EDAE49`), picked by the user over the earlier forest/lime palette in a side-by-side mockup on 2026-10-16. All values are tokens in one place (`src/app/globals.css` CSS variables + Tailwind theme) so tuning after the first click-through is cheap.
 
 | Token | Value | Use |
 |---|---|---|
-| `--bg` | `#F5FAF6` | page background |
+| `--bg` | `#FAF9F5` | page background (warm off-white, matches logo sheet) |
 | `--surface` | `#FFFFFF` | cards, sheet |
-| `--ink` | `#0B2318` | primary text |
-| `--muted` | `#4A5D53` | secondary text |
-| `--cta` | `#9BE15D` | primary button (text `--ink`) |
-| `--brand` | `#0F5132` | logo mark, timeline fill, success |
+| `--ink` | `#2E4057` | primary text, headings (logo navy) |
+| `--muted` | `#5B6B7D` | secondary text |
+| `--cta` | `#8BC34A` | primary button (text `--ink`, about 5:1) |
+| `--brand` | `#2E4057` | avatar, links, `TESTNET` tag, focus ring |
+| `--done` | `#8BC34A` | timeline fill and completed-step dots (fill only) |
+| `--done-text` | `#3F7D20` | success text (`#8BC34A` fails contrast as text) |
+| `--accent` | `#EDAE49` | `TEST MODE` pill and small highlights (fill only, never text) |
 | `--pending` | `#B45309` | waiting / unknown |
 | `--danger` | `#DC2626` | failed step + action |
-| `--border` | `#D7E5DC` | card borders |
+| `--border` | `#E3E1DA` | card borders |
 
 - Fonts: IBM Plex Sans + IBM Plex Sans Thai (headings and body), IBM Plex Mono for hashes and references. Loaded via `next/font/google` with `display: swap`. Amounts use `font-variant-numeric: tabular-nums`.
 - Evidence tags: `SIMULATED` = dashed grey outline pill; `TESTNET · Fuji` = solid outline pill.
@@ -268,7 +271,7 @@ The backend (person 3) is a standalone, API-only Next.js app in `4rtem1sss/U-hac
 
 ## 9. Design skills during implementation
 
-- `ui-ux-pro-max`: palette, font and UX-rule lookups (used for this spec; re-check tokens if the logo arrives with its own colors).
+- `ui-ux-pro-max`: palette, font and UX-rule lookups (used for this spec; tokens now follow the logo).
 - `impeccable`: build and refine the screens (`craft` for first build, `critique`/`audit`/`polish` for iteration). Not run on the same request as `ui-ux-pro-max`.
 
 ## 10. Out of scope
@@ -278,7 +281,7 @@ Dark mode, recipient management, account/login screens, reverse THB→USD direct
 ## 11. Build order
 
 1. `src/web/` core: money, status, api types + zod, mock, i18n (no framework needed).
-2. Join the backend repo on `frontend-merge-part3` (section 7); add Tailwind/shadcn; tokens, fonts, header, logo placeholder.
+2. Join the backend repo on `frontend-merge-part3` (section 7); add Tailwind/shadcn; tokens, fonts, header, logo.
 3. Screen 1 → 2 → bank sheet → screen 3 with mock data; full click-through.
 4. Presenter panel, failure states, ntfy from mock.
 5. Motion (wow sequence).
