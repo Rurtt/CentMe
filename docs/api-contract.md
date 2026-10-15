@@ -44,7 +44,7 @@ The public session ID is not the cookie secret. Scope every recipient fixture, q
 { "name": "สมชาย ใจดี", "bankCode": "KBANK", "accountNumber": "123-4-56789-0" }
 ```
 
-- `name`: trimmed, 1-60 chars; letters (any script), spaces, `.`, `-`, `'`.
+- `name`: trimmed, 1-60 chars; letters (any script), spaces, `.`, `-`, `'`, with at least one letter.
 - `bankCode`: `KBANK` | `SCB` | `BBL` | `KTB` | `BAY` | `TTB` | `GSB` (server sets `bankLabel`).
 - `accountNumber`: 10-12 digits after removing spaces and `-`. Only `"••" + last 4` is stored and returned as `accountDisplay`; the full number is never stored or logged.
 - Returns `201` with `data` = the recipient (same shape as one `GET` item). `400 INVALID_INPUT` with `fieldErrors.{name|bankCode|accountNumber}`; `409 RECIPIENT_LIMIT` after 10 recipients per session.
