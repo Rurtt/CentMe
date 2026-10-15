@@ -38,7 +38,18 @@ The public session ID is not the cookie secret. Scope every recipient fixture, q
 
 ## 3. Recipients and quote arithmetic
 
-`GET /api/recipients` returns the session's seeded synthetic Thai recipient. No recipient creation, contact search or real bank onboarding is required for v1.
+`GET /api/recipients` returns the session's seeded synthetic Thai recipient. `POST /api/recipients` adds a synthetic recipient typed in during the demo (same-origin, session required, extra fields rejected):
+
+```json
+{ "name": "สมชาย ใจดี", "bankCode": "KBANK", "accountNumber": "123-4-56789-0" }
+```
+
+- `name`: trimmed, 1-60 chars; letters (any script), spaces, `.`, `-`, `'`.
+- `bankCode`: `KBANK` | `SCB` | `BBL` | `KTB` | `BAY` | `TTB` | `GSB` (server sets `bankLabel`).
+- `accountNumber`: 10-12 digits after removing spaces and `-`. Only `"••" + last 4` is stored and returned as `accountDisplay`; the full number is never stored or logged.
+- Returns `201` with `data` = the recipient (same shape as one `GET` item). `400 INVALID_INPUT` with `fieldErrors.{name|bankCode|accountNumber}`; `409 RECIPIENT_LIMIT` after 10 recipients per session.
+
+No contact search or real bank onboarding in v1.
 
 Example `200 OK`:
 
@@ -296,6 +307,7 @@ Example `409 Conflict`:
 | 403 | `ORIGIN_NOT_ALLOWED`, `DEMO_DISABLED` | Stop the mutation; do not retry around the access rule. |
 | 404 | `NOT_FOUND` | Generic missing/inaccessible record message. |
 | 409 | `IDEMPOTENCY_CONFLICT`, `QUOTE_ALREADY_ACCEPTED`, `INVALID_STATE` | Read current state and resolve the conflict; do not create another payment blindly. |
+| 409 | `RECIPIENT_LIMIT` | Not retryable; tell the user the demo session is full and reset it to add more recipients. |
 | 410 | `QUOTE_EXPIRED` | Create and review a new quote; never silently substitute it. |
 | 422 | `UNSUPPORTED_CORRIDOR` | Show that only the selected US-to-Thailand fixture is supported. |
 | 429 | `RATE_LIMITED`, `DEMO_BUDGET_EXCEEDED` | Back off; respect `Retry-After` where supplied. |
