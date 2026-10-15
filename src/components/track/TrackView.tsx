@@ -14,6 +14,7 @@ import { errorText } from "@/web/i18n/errorText";
 import { useT } from "@/web/i18n/LanguageProvider";
 import { formatMinor } from "@/web/money";
 import { toView, type PrimaryAction } from "@/web/status";
+import { debitForTransfer } from "@/web/wallet";
 import { useTransfer } from "@/web/useTransfer";
 import { Details } from "./Details";
 import { NotifiedChip } from "./NotifiedChip";
@@ -31,7 +32,10 @@ export function TrackView({ id }: { id: string }) {
   const runFunding = useCallback(async () => {
     setBusy(true);
     try {
-      accept(await api.simulateFunding(id, getOrCreateKey(`funding:${id}`)));
+      const funded = await api.simulateFunding(id, getOrCreateKey(`funding:${id}`));
+      // Declined funding moves no money, so the wallet is only debited on ACCEPTED (once per transfer).
+      if (funded.funding.status === "ACCEPTED") debitForTransfer(id, funded.amounts.sourceDebitMinor);
+      accept(funded);
       kick();
     } catch (e) {
       if (isApiError(e, "INVALID_STATE")) kick();
