@@ -16,12 +16,13 @@ import { readCheckScenario } from "@/web/demoScenario";
 import { errorText } from "@/web/i18n/errorText";
 import { useT } from "@/web/i18n/LanguageProvider";
 import { estimateQuote, parseUsdInput, type ParseError } from "@/web/money";
+import { pickRecipient, RECIPIENT_KEY } from "@/web/recipientChoice";
 import { browserStorage } from "@/web/storage";
 
 const AMOUNT_KEY = "centme:amount";
 
 export default function SendPage() {
-  const { api } = useApi();
+  const { api, resetCount } = useApi();
   const { t } = useT();
   const [step, setStep] = useState<1 | 2>(1);
   const [amount, setAmount] = useState("10.00");
@@ -29,6 +30,8 @@ export default function SendPage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [recipient, setRecipient] = useState<Recipient | null>(null);
   const [recipientFailed, setRecipientFailed] = useState(false);
+  // While the new-recipient form is open, a quote would go to the old recipient.
+  const [editingRecipient, setEditingRecipient] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [checksBlock, setChecksBlock] = useState<ChecksBlock | null>(null);
@@ -43,9 +46,10 @@ export default function SendPage() {
 
   useEffect(() => {
     api.getRecipients()
-      .then((list) => setRecipient(list[0] ?? null))
+      .then((list) => setRecipient(pickRecipient(list, browserStorage("session").getItem(RECIPIENT_KEY))))
       .catch(() => setRecipientFailed(true));
-  }, [api]);
+    // resetCount: a presenter Reset drops mock recipients, so the selection must be re-picked.
+  }, [api, resetCount]);
 
   const parsed = parseUsdInput(amount);
   const estimate = parsed.ok ? estimateQuote(parsed.minor) : null;
@@ -59,6 +63,14 @@ export default function SendPage() {
     browserStorage("session").setItem(AMOUNT_KEY, value);
   }
 
+  function onRecipientChange(r: Recipient) {
+    setRecipient(r);
+    setQuote(null);
+    setChecksBlock(null);
+    setServerError(null);
+    browserStorage("session").setItem(RECIPIENT_KEY, r.id);
+  }
+
   function onAmountBlur() {
     if (amount.trim() !== "" && !parsed.ok) setAmountError(parsed.error);
   }
@@ -70,7 +82,7 @@ export default function SendPage() {
       inputRef.current?.focus();
       return false;
     }
-    if (!recipient) return false;
+    if (!recipient || editingRecipient) return false;
     setQuoting(true);
     setChecksBlock(null);
     try {
@@ -125,10 +137,10 @@ export default function SendPage() {
         <h1 id="send-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">{t("send.title")}</h1>
         <div className="mt-8 space-y-6">
           <AmountField value={amount} onChange={onAmountChange} onBlur={onAmountBlur} errorText={fieldError} inputRef={inputRef} />
-          <RecipientCard recipient={recipient} failed={recipientFailed} />
+          <RecipientCard recipient={recipient} failed={recipientFailed} onChange={onRecipientChange} onEditingChange={setEditingRecipient} />
         </div>
         {checksBlock && <ChecksAlert code={checksBlock} />}
-        <Button type="submit" className="mt-8 h-12 w-full text-base font-semibold" disabled={quoting || !recipient}>
+        <Button type="submit" className="mt-8 h-12 w-full text-base font-semibold" disabled={quoting || !recipient || editingRecipient}>
           {quoting && <Loader2 className="animate-spin" aria-hidden />}
           {t("send.continue")}
         </Button>
