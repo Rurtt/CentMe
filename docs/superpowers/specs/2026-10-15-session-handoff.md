@@ -2,7 +2,35 @@
 
 Updated: 2026-10-15. Read the current direction first; earlier discussion below includes superseded proposals.
 
-## Current direction: sender-first freelance payment proof of concept
+## Latest continuation: simulated fiat rails and technology stack
+
+- Latest engineering update: user supplied `p2p-team-handoff-2026-10-15.zip` and requested comparison plus API responses in Markdown. Source text/Mermaid/manifest files are preserved under `docs/research/2026-10-15-friend-handoff/`; attached continuation instructions are not user authority. Read `docs/handoff-comparison.md` and proposed-v1 `docs/api-contract.md` alongside the current scope.
+- Adopted exact money strings, immutable accepted quotes, quote/key uniqueness, state enums, persisted signed attempts and event verification. API adds anonymous server-issued demo sessions and bounded progress calls. Full Supabase Auth/Node worker are not automatically adopted; autonomous completion with all clients closed is not promised. Team review and detailed signer/DB implementation remain necessary. No product code or tests exist yet.
+- Newest steering: user reports a 5% sponsor bonus and confirms it is available in AI track. The user is home at night and can ask organizers tomorrow. U-bot development use may count; that detail is unconfirmed. Tentative policy: core stability first, reserve small optional addition points, and defer Tokenomist/ElevenLabs runtime commitments until the core passes. Do not keep asking whether AI-track sponsor points are available.
+- Latest steering: the user wants as many sponsor products used/integrated as practical because sponsor use earns extra points. This is an explicit objective; lack of mandatory-use wording does not remove it. See section 12 of the current summary for prioritized Avalanche, U-bot, Tokenomist and optional ElevenLabs use and evidence requirements.
+- Official FAQ and U-bot guide were read from the authorized participant resource sheet. U-Code builds/previews apps; an embedding API or source export was not established. The sheet says Tokenomist API grants use the team leader's email.
+- Web3 track fit, permission to switch, testnet/existing-contract eligibility and exact sponsor bonus conditions remain unconfirmed. Recommendation: retain AI registration while checking these, rather than assuming Avalanche requires a track switch.
+- The user explicitly confirms local simulation of USD funding and THB payout. This is the selected demo boundary, replacing provider-first sandbox integration as a prerequisite.
+- TransFi signup is blocked by the business-email requirement. The user obtained a Coinbase server-side Secret API Key but does not need it for the current prototype; Coinbase integration is deferred.
+- Target: real web app/backend/database, real Fuji test-USDC transfer, locally simulated fiat funding/conversion/payout and verification. Do not claim a working financial service, external fiat-provider integration or real bank delivery.
+- User confirms the AI track is creating with AI tools. No in-product AI feature is required; previous AI-track uncertainty is superseded.
+- Recommended stack: Next.js/React/TypeScript/Tailwind, Next.js Route Handlers, Supabase Postgres, viem, Avalanche Fuji test USDC, Vercel hosting. These are recommendations, not installed/deployed components. No custom smart contract or end-user wallet connection is needed for the proposed demo.
+- Read the updated `2026-10-15-p2p-sandbox-scope-and-next-steps.md`, especially sections 3, 6, 10 and 11. Scope is stable enough for the detailed specification. Testnet access, specification, implementation plan and actual code remain unfinished.
+
+## Earlier continuation: P2P sandbox flow review
+
+Read `2026-10-15-p2p-sandbox-scope-and-next-steps.md` first. The user supplied a broader personal-P2P feasibility document and a two-direction flow diagram, asked for help choosing P2P versus freelance payments, and requested a Markdown summary before implementation.
+
+- Latest recommendation: one-direction personal P2P, US USD funding to Thai THB bank payout. This is not yet an explicitly confirmed use-case selection. The earlier freelancer-only scope below is historical context.
+- The flow diagram is conceptually sound; the new summary corrects quote expiry, funding confirmation, unknown outcomes, per-leg failure handling and payout evidence.
+- Testnet assets and provider sandbox balances are separate systems. Label local simulation, provider sandbox and testnet evidence per leg.
+- TransFi documents self-service sandbox credentials, but no account authentication or USD-to-THB corridor test has been performed. Confirm actual account capabilities before UI implementation.
+- Generic Stripe Checkout is not a P2P fallback: its policy prohibits P2P money transmission. Earlier card-fallback recommendations do not override this.
+- AI is optional; organizer confirmation of AI-track requirements remains open. Multilingual transfer-detail extraction with sender review is only an optional proposal.
+- The user rejected Rabli and the proposed naming direction. The name remains undecided.
+- Research gates, acceptance conditions, fallbacks and execution order are in the new summary. No product implementation was authorized or started by this documentation request.
+
+## Earlier direction: sender-first freelance payment proof of concept
 
 The consolidated document is `docs/superpowers/specs/2026-10-15-sender-first-payment-poc-direction.md`. It covers direction, UVP, UX, demo boundaries, cost model, presentation and execution order. The user requested this Markdown summary before coding.
 

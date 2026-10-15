@@ -1,0 +1,56 @@
+{
+  "package": "p2p-our-team-handoff-2026-10-15",
+  "preparedDate": "2026-10-15",
+  "timezone": "Asia/Bangkok",
+  "status": "Documentation only; proposed interfaces; no product tests or transactions verified",
+  "source": "Current workspace documentation and review of user-supplied merged-v2 archive",
+  "apiChanges": "Relative references and proposed ownership paragraph only; all JSON examples preserved",
+  "validation": {
+    "relativeMarkdownLinks": 17,
+    "parseableJsonExamples": 7,
+    "apiJsonExamplesUnchanged": true,
+    "archivePayloadAllowlist": true
+  },
+  "files": [
+    {
+      "path": "docs/acceptance-checklist.md",
+      "bytes": 3533,
+      "sha256": "411d4f32608e9a37e926a8e640cf5ff918d2353aba1b53bf7830cc7cf8459326"
+    },
+    {
+      "path": "docs/api-contract.md",
+      "bytes": 21479,
+      "sha256": "4e025e2718a10c3fc0136ed9b1cf4960d6f95ff8d33eb052241d91afc401628f"
+    },
+    {
+      "path": "docs/backend-fuji-integration.md",
+      "bytes": 6922,
+      "sha256": "a6731810fb47a0e7093b0880cf45c033edee802aa7971db992790cb971bc145f"
+    },
+    {
+      "path": "docs/cost-and-sponsor-notes.md",
+      "bytes": 3571,
+      "sha256": "18219fb93355b78e5a60768aa05f890ded26acb4887ee77b74697de078dc4e5c"
+    },
+    {
+      "path": "docs/current-scope.md",
+      "bytes": 5002,
+      "sha256": "f6af0c359525be2c765c7666dde4336610d11dbdadf1226cbab4ece4b1270e20"
+    },
+    {
+      "path": "docs/handoff-comparison.md",
+      "bytes": 4915,
+      "sha256": "9fd963ebef3ba3a5362c692cf922db9148b4f4c82b0908491c5799ea19c77c92"
+    },
+    {
+      "path": "docs/team-handoff.md",
+      "bytes": 4958,
+      "sha256": "d9f5e91de975ab41e5cb2b49c374612517d791dc059c6af9ee8ff457a3656427"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2487,
+      "sha256": "c698a0a6d829d45ec1c77f5c9c1ef365d808e983b33427c1f84ed16a23594662"
+    }
+  ]
+}

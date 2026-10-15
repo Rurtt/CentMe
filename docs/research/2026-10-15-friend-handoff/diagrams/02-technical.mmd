@@ -1,0 +1,34 @@
+sequenceDiagram
+    actor Sender
+    participant Web
+    participant API
+    participant DB as PostgreSQL
+    participant Worker
+    participant Chain as Avalanche Fuji
+    participant Payout as Mock payout
+    Sender->>Web: Select recipient and amount
+    Web->>API: Request quote
+    API->>DB: Persist quote and expiry
+    API-->>Web: Source debit, fee, net THB, simulation labels
+    Sender->>Web: Confirm
+    Web->>API: Create transfer with idempotency key
+    API->>DB: Accept valid quote and persist transfer
+    API->>DB: Record simulated funding and settlement job
+    API-->>Web: Transfer ID and current status
+    Worker->>DB: Claim job and serialize signer access
+    Worker->>DB: Persist signed attempt, nonce and hash
+    Worker->>Chain: Broadcast signed token transaction
+    loop Until confirmed, failed or review needed
+        Worker->>Chain: Reconcile receipt and expected token event
+    end
+    alt Verified successful settlement
+        Worker->>DB: Persist SETTLED and payout job atomically
+        Worker->>Payout: Submit with stable payout request ID
+        Payout-->>Worker: Simulated outcome
+        Worker->>DB: Persist payout result and event
+    else Uncertain or reverted
+        Worker->>DB: Record pending, failure or review and hold payout
+    end
+    Web->>API: Poll transfer status
+    API->>DB: Read account-owned transfer and events
+    API-->>Web: Milestones, testnet hash and mock payout reference

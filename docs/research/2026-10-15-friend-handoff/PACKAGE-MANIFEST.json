@@ -1,0 +1,89 @@
+{
+  "name": "P2P Payments Team and AI Handoff",
+  "version": "1.0",
+  "date": "2026-10-15",
+  "timezone": "Asia/Bangkok",
+  "status": "Research and proposed design; no product implementation",
+  "files": [
+    {
+      "path": "AI-START-HERE.md",
+      "bytes": 5568,
+      "sha256": "241fd586f81317b5cdeb7d9a71dc0a301ca0efd4f9753516944aeded85f9c398"
+    },
+    {
+      "path": "diagrams/01-technical.mmd",
+      "bytes": 788,
+      "sha256": "acb32aee86f3a0092bfc70e6b7bb3756145ff4703d53a9ed689d8d6b82d55035"
+    },
+    {
+      "path": "diagrams/01-technical.svg",
+      "bytes": 33802,
+      "sha256": "13fcd8cf8efeb55de8cd55a8273ee7b132126996ff360bab0cedfa930b1ca305"
+    },
+    {
+      "path": "diagrams/02-technical.mmd",
+      "bytes": 1472,
+      "sha256": "5b8f07c75450575f050a6ed886888c6007c35884d9887c53d604c8ed5c22b90b"
+    },
+    {
+      "path": "diagrams/02-technical.svg",
+      "bytes": 36486,
+      "sha256": "b02fa59b6e7203e71feee8ee5df5af74afb18f8a5760056f7f656da53069746c"
+    },
+    {
+      "path": "diagrams/03-technical.mmd",
+      "bytes": 794,
+      "sha256": "c070175566d2921b89b4ce0b26b6df36459a5d716a9bf2dc9ef51b1b973c6242"
+    },
+    {
+      "path": "diagrams/03-technical.svg",
+      "bytes": 390495,
+      "sha256": "66bafa1e212f7c4db09997954d6f4ee5554fb19c9a03f96409f48f922d594268"
+    },
+    {
+      "path": "diagrams/04-research.mmd",
+      "bytes": 411,
+      "sha256": "229ddfcfcbc5c7c33c853d00ceef117081ca567284cd8e44af8186348c6f79a9"
+    },
+    {
+      "path": "diagrams/04-research.svg",
+      "bytes": 17319,
+      "sha256": "ec4962536dcd76871002e1c3f45e04c48ccb5ee1b7975745981a1a27c4daaee7"
+    },
+    {
+      "path": "HANDOFF.md",
+      "bytes": 16648,
+      "sha256": "5d3987be2d7adf3e06a064c2d7cc3d0fb437d159a3d35c42dc23c20abf9def5d"
+    },
+    {
+      "path": "PACKAGE-VALIDATION.md",
+      "bytes": 1343,
+      "sha256": "7be1301402b16487c70e9da01f6975a59d185ec2e19860a4bff95215c7cbe4dd"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2590,
+      "sha256": "dc1df0a3d88cc49dc0da3958ab6555c860dd57ef54e1c96eb66daa7434e26194"
+    },
+    {
+      "path": "RESEARCH-AND-LEGAL.md",
+      "bytes": 23228,
+      "sha256": "5d1b1e02c4b521eb00c1dc37dbf0b152602252b368b658ba2d7ab211aa647ffb"
+    },
+    {
+      "path": "TEAM-HANDBOOK.html",
+      "bytes": 587071,
+      "sha256": "aad3690e0a17796a59207e46a08d25585dbf70b9b789bfdc35dcf5f3f82f5231"
+    },
+    {
+      "path": "TEAM-PLAN.md",
+      "bytes": 14487,
+      "sha256": "344cbb46f1feb527fdf794d8202ccb0ae547e099dc9742662bbb93661fe80bea"
+    },
+    {
+      "path": "TECHNICAL-SPEC.md",
+      "bytes": 26167,
+      "sha256": "6b42434e5a89fccdca387d5e6ac7bae3e22d01dc6f9609a0e4c70771796375b9"
+    }
+  ]
+}

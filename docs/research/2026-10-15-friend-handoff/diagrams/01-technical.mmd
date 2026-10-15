@@ -1,0 +1,20 @@
+flowchart TD
+    S["Sender browser"] --> UI["Next.js UI"]
+    UI --> API["Next.js API: validate and orchestrate"]
+    AUTH["Supabase Auth"] --> API
+    API --> Q["Deterministic demo quote"]
+    API --> F["Mock KYC and fiat funding"]
+    Q --> DB[("PostgreSQL: quotes, transfers, jobs, events")]
+    F --> DB
+    DB --> W["Node.js worker"]
+    W --> OW["Origin test settlement wallet"]
+    OW -->|"test USDC"| CH["Avalanche Fuji C-Chain"]
+    CH --> DW["Destination test settlement wallet"]
+    W --> V["Receipt and Transfer-event verification"]
+    CH --> V
+    V -->|"Verified settlement"| P["Mock THB payout adapter"]
+    V -->|"Uncertain or failed"| HOLD["Hold payout; reconcile or review"]
+    P --> DB
+    HOLD --> DB
+    API --> DB
+    UI -->|"Poll status"| API

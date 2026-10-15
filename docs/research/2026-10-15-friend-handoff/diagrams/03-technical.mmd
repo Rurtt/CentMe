@@ -1,0 +1,15 @@
+stateDiagram-v2
+    [*] --> FUNDING_PENDING
+    FUNDING_PENDING --> FUNDED_SIMULATED: Mock funding accepted
+    FUNDING_PENDING --> FUNDING_FAILED: Mock funding rejected
+    FUNDED_SIMULATED --> SETTLEMENT_PENDING: Settlement job claimed
+    SETTLEMENT_PENDING --> SETTLED: Receipt and token event verified
+    SETTLEMENT_PENDING --> SETTLEMENT_FAILED: Known reverted transaction
+    SETTLEMENT_PENDING --> REVIEW_REQUIRED: Outcome cannot be resolved safely
+    SETTLED --> PAYOUT_PENDING: Payout job created
+    PAYOUT_PENDING --> COMPLETED_SIMULATED: Mock paid
+    PAYOUT_PENDING --> PAYOUT_FAILED: Mock failed
+    PAYOUT_PENDING --> REVIEW_REQUIRED: Unknown outcome
+    PAYOUT_FAILED --> PAYOUT_PENDING: Retry payout
+    FUNDING_FAILED --> [*]
+    COMPLETED_SIMULATED --> [*]

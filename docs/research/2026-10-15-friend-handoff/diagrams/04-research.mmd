@@ -1,0 +1,9 @@
+flowchart LR
+    S["Sender fiat account"] --> O["Approved origin collector: TBD"]
+    O --> L["Stablecoin acquisition / liquidity: TBD"]
+    L --> C["Avalanche settlement wallets: operator and title TBD"]
+    C --> X["Approved conversion and payout partner: TBD"]
+    X --> R["Recipient bank account"]
+    APP["Platform: UX, instructions, records; legal role TBD"] -.-> O
+    APP -.-> C
+    APP -.-> X
