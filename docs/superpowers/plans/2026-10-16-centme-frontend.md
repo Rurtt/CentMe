@@ -6,22 +6,26 @@
 
 **Architecture:** Next.js App Router client pages consume one `ApiClient` interface. A router picks the real `fetch` client or an in-browser mock per endpoint group from `NEXT_PUBLIC_REAL_ENDPOINTS`. Pure TypeScript modules (`money`, `status`, `i18n`, `transferPoller`) hold all logic and are unit-tested with Vitest; React components stay thin.
 
-**Tech Stack:** Next.js (App Router, TypeScript), Tailwind CSS v4, shadcn/ui (button, dialog, sonner), lucide-react, zod, Vitest. Node 20+ (machine has Node 24, npm 11).
+**Tech Stack:** the backend repo's toolchain as is: Next.js 16.4.1 (App Router), React 19.3, TypeScript 5.9.3 (strict), zod 4, Vitest 5, pnpm 10.28, Node 22. Frontend adds Tailwind CSS v4, shadcn/ui (button, dialog, sonner), lucide-react.
 
-**Spec:** `docs/superpowers/specs/2026-10-16-centme-frontend-design.md` (read it with this plan). API contract: `docs/api-contract.md`.
+**Revised 2026-10-16:** aligned with the backend-v1 spec revision (app = person 3's repo on branch `frontend-merge-part3`, `src/` layout, pnpm, backend notification enum, logo palette and wordmark). Earlier drafts used a root-level `lib`/`app` layout, npm and a lime palette; ignore any copy of those.
+
+**Spec:** `docs/superpowers/specs/2026-10-16-centme-frontend-design.md` (read it with this plan). API contract: `docs/api-contract.md`, extended by person 2's `estimate-contract.md` (simulated checks on `POST /api/quotes`; the frontend does not call `POST /api/estimates`).
 
 ## Global Constraints
 
 - All money values are unsigned base-10 integer strings (USD cents, THB satang, USDC 6-decimal units). Use `BigInt` for every money calculation; never `Number`/floating point for money.
-- Frontend never creates or edits files under `app/api/` (backend owners' territory: persons 2, 3, 4).
+- Frontend touches only: `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`, `src/app/icon.png`, `src/app/providers.tsx`, `src/app/transfers/`, `src/components/`, `src/web/`, `tests/web/`, `public/brand/`, and the Task 1 tooling files. Never `src/app/api/`, `src/server/`, `src/db/`, `src/domain/`, `src/lib/`, `src/settlement/`, `src/simulators/`, `src/notifications/`, `src/config/`, `db/` or `scripts/` (persons 2, 3, 4). Frontend code never imports backend modules (they are `server-only`); it has its own contract types in `src/web/api/types.ts`.
+- Real API calls are relative `/api/...` (same origin, so the backend's `Origin` check and `demo_session` cookie work; there is no CORS). Body-less POSTs send `{}` (backend bodies are strict empty objects); any 2xx is success (`advance` returns 202 while pending).
+- TypeScript is strict with `noUncheckedIndexedAccess`, and `tests/**` is type-checked. CI runs `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`; every task must leave all four green. Fix test typings (e.g. `vi.fn<...>()`) rather than excluding tests. Use `pnpm vitest run tests/web` for the fast frontend loop and run the full `pnpm test` before pushing.
 - Requests send only contract fields. Never send a rate, fee, token address, wallet, payout amount or status from the browser.
 - Evidence honesty: funding, conversion and payout are tagged `SIMULATED`; real settlement `TESTNET · Fuji`; mock settlement `MOCK` with no explorer link. Completion copy exactly: "Demo completed — THB payout simulated."
 - Mock mode always shows the `MOCK DATA` banner and never shows a Snowtrace link.
 - Idempotency keys are created once per logical action and reused on every retry of that action.
 - Accessibility: body text ≥16px, contrast ≥4.5:1, visible focus rings, color never the only signal, `prefers-reduced-motion` respected.
-- Light mode only. One primary (lime) button per screen.
-- Language: English default, TH/EN toggle; every user-visible string comes from `lib/i18n`.
-- App location: if the team's shared Next.js app exists, use its root. Otherwise this plan creates it at `web/`. **All paths below are relative to the app root**, and every command runs from the app root.
+- Light mode only. One primary (green `--primary`, navy text) button per screen.
+- Language: English default, TH/EN toggle; every user-visible string comes from `src/web/i18n`.
+- App location: the backend repo clone (`D:\U-hackathon_backend`, branch `frontend-merge-part3`; Task 1). **All paths below are relative to that repo root**, and every command runs from there. Spec, plan and walkthrough docs stay in `D:\U-Hackathon`.
 - Commit messages end with the line `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` when an agent commits.
 
 ## Review Focus
@@ -34,102 +38,129 @@
 
 ---
 
-### Task 1: Join or create the app, add tooling
+### Task 1: Join the backend repo, add frontend tooling
+
+The app is person 3's backend repo (`4rtem1sss/U-hackathon_backend`), not a new app. Tell person 3 before starting (spec section 7): the frontend adds Tailwind v4 + shadcn config and replaces the placeholder `src/app/layout.tsx` and `src/app/page.tsx`. You need push access to that repo, or a fork + PR.
 
 **Files:**
-- Create (only if no shared app exists): `web/` via create-next-app
-- Create: `vitest.config.ts`, `.env.example`
-- Modify: `package.json` (scripts)
+- Modify: `package.json`, `pnpm-lock.yaml` (via `pnpm add`), `.env.example` (append frontend vars)
+- Create: `postcss.config.mjs`, `components.json`, `src/app/globals.css` (stub; replaced in Task 9), `src/web/utils.ts`, `src/components/ui/{button,dialog,sonner}.tsx` (generated), `public/brand/centme-{wordmark,mark,app-icon}.png`, `src/app/icon.png`
 
 **Interfaces:**
-- Produces: `npm test` runs Vitest over `lib/**/*.test.ts`; `@/` import alias points to the app root; shadcn components at `components/ui/button.tsx`, `components/ui/dialog.tsx`, `components/ui/sonner.tsx`; `cn()` at `lib/utils.ts`.
+- Produces: `pnpm vitest run tests/web` runs the frontend tests (the backend `vitest.config.mts` already includes `tests/**/*.test.ts`, node environment, `@` → `./src`, so no Vitest config change); `@/web/*` and `@/components/*` imports; shadcn components at `src/components/ui/`; `cn()` at `src/web/utils.ts`; logo files under `/brand/`.
 
-- [ ] **Step 1: Check for the shared app**
-
-```bash
-cd /d/U-Hackathon && git pull && ls package.json web/package.json 2>/dev/null
-```
-
-If person 3 (integration lead) has pushed a Next.js app, use its root as the app root and skip Step 2. Otherwise confirm with person 3 that you are creating it, then continue.
-
-- [ ] **Step 2: Create the app (only if none exists)**
+- [ ] **Step 1: Clone and branch**
 
 ```bash
-cd /d/U-Hackathon
-npx create-next-app@latest web --ts --tailwind --eslint --app --no-src-dir --import-alias "@/*" --use-npm --yes
-cd web
+cd /d
+git clone https://github.com/4rtem1sss/U-hackathon_backend.git
+cd U-hackathon_backend
+git switch -c frontend-merge-part3 origin/part3/backend-core
+npm i -g pnpm@10.28.0   # once per machine; the repo pins it in packageManager
+pnpm install
+cp .env.example .env.local
 ```
 
-Tell the team: "Next.js app is at `web/`. Vercel root directory = `web`. Route handlers go in `web/app/api/`."
+Node: the repo pins 22 (`.nvmrc`, `engines`). This machine has 24; pnpm only warns. If install refuses, install Node 22 (e.g. `nvm install 22 && nvm use 22`).
 
-- [ ] **Step 3: Install dependencies and shadcn**
+Next is 16.4.1 with breaking changes. Read `AGENTS.md`, then the relevant guide in `node_modules/next/dist/docs/` before writing any framework code (layout, pages, fonts, `next/image`, app icons).
+
+- [ ] **Step 2: Add Tailwind v4, shadcn and icons**
 
 ```bash
-npm i zod
-npm i -D vitest
-npx shadcn@latest init -d
-npx shadcn@latest add button dialog sonner -y
-npm ls lucide-react tw-animate-css
+pnpm add lucide-react clsx tailwind-merge
+pnpm add -D tailwindcss @tailwindcss/postcss tw-animate-css
 ```
 
-Expected: `lucide-react` and `tw-animate-css` are listed (shadcn installs them). If `tw-animate-css` is missing, run `npm i tw-animate-css`.
+Create `postcss.config.mjs`:
 
-- [ ] **Step 4: Vitest config**
+```js
+const config = { plugins: { "@tailwindcss/postcss": {} } };
+export default config;
+```
 
-Create `vitest.config.ts`:
+Create a stub `src/app/globals.css` (Task 9 replaces it):
+
+```css
+@import "tailwindcss";
+```
+
+Create `components.json` by hand (not `shadcn init`, which would put `utils` in the backend's `src/lib/`):
+
+```json
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": { "config": "", "css": "src/app/globals.css", "baseColor": "neutral", "cssVariables": true, "prefix": "" },
+  "aliases": { "components": "@/components", "ui": "@/components/ui", "utils": "@/web/utils", "lib": "@/web", "hooks": "@/web/hooks" },
+  "iconLibrary": "lucide"
+}
+```
+
+Create `src/web/utils.ts`:
 
 ```ts
-import { defineConfig } from "vitest/config";
-import { fileURLToPath } from "node:url";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
-export default defineConfig({
-  test: { environment: "node", include: ["lib/**/*.test.ts"] },
-  resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
-});
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(inputs));
+}
 ```
 
-In `package.json` `scripts`, add `"test": "vitest run"`.
-
-- [ ] **Step 5: Env example**
-
-Create `.env.example`:
+Then generate the components:
 
 ```bash
+pnpm dlx shadcn@latest add button dialog sonner -y
+git status --short
+```
+
+Expected: new files only in `src/components/ui/`, plus `package.json`/`pnpm-lock.yaml`. If shadcn wrote anything under `src/lib/`, `src/app/api/` or any other backend folder, revert it (`git checkout -- <path>`) and fix `components.json`.
+
+- [ ] **Step 3: Env vars**
+
+Append to the existing `.env.example` (keep person 3's lines untouched):
+
+```bash
+# --- Frontend (CentMe). Public values only. ---
 # Endpoint groups served by the real backend. Comma list of: session,recipients,quotes,transfers (or "all").
-# Unlisted groups use the in-browser mock. Flip quotes before transfers.
+# Unlisted groups use the in-browser mock. session+recipients+quotes flip together, then transfers.
 NEXT_PUBLIC_REAL_ENDPOINTS=
 # ntfy.sh topic the presenter's phone subscribes to (mock mode sends from the browser). Long and random.
+# Use the same value for the server's NTFY_TOPIC so real-mode pushes reach the same phone.
 NEXT_PUBLIC_NTFY_TOPIC=
 ```
 
-Generate a topic and put it in `.env.local` (not committed):
+Generate a topic into `.env.local` (already git-ignored by `.env*.local`):
 
 ```bash
 node -e "console.log('NEXT_PUBLIC_NTFY_TOPIC=centme-' + require('crypto').randomBytes(12).toString('hex'))" >> .env.local
 ```
 
-create-next-app's `.gitignore` ignores `.env*`, which would also hide `.env.example`. Append one line to `.gitignore`:
+Copy that value into `NTFY_TOPIC=` in `.env.local` too.
 
-```
-!.env.example
-```
-
-Keep Vitest files out of Next's type-check (they use loose mock typings). In `tsconfig.json`, set:
-
-```json
-"exclude": ["node_modules", "**/*.test.ts", "vitest.config.ts"]
-```
-
-- [ ] **Step 6: Verify**
-
-Run: `npx vitest run --passWithNoTests && npm run build`
-Expected: Vitest exits 0 with "No test files found"; Next build succeeds.
-
-- [ ] **Step 7: Commit**
+- [ ] **Step 4: Logo files**
 
 ```bash
-git add -A . ':!.env.local'
-git commit -m "chore(web): scaffold CentMe frontend tooling"
+mkdir -p public/brand
+cp /d/U-Hackathon/assets/logo/centme-wordmark.png /d/U-Hackathon/assets/logo/centme-mark.png /d/U-Hackathon/assets/logo/centme-app-icon.png public/brand/
+cp /d/U-Hackathon/assets/logo/centme-app-icon.png src/app/icon.png
+```
+
+`src/app/icon.png` is the Next file-convention favicon (check the Next 16 docs for the current convention).
+
+- [ ] **Step 5: Verify**
+
+Run: `pnpm lint && pnpm typecheck && pnpm vitest run tests/web --passWithNoTests && pnpm build`
+Expected: all exit 0; Vitest reports no frontend test files yet; the backend's own tests are untouched.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add package.json pnpm-lock.yaml postcss.config.mjs components.json .env.example src/app/globals.css src/app/icon.png src/web/utils.ts src/components/ui public/brand
+git commit -m "chore(web): add CentMe frontend tooling"
 ```
 
 ---
@@ -137,8 +168,8 @@ git commit -m "chore(web): scaffold CentMe frontend tooling"
 ### Task 2: Money and format helpers
 
 **Files:**
-- Create: `lib/lang.ts`, `lib/money.ts`, `lib/format.ts`
-- Test: `lib/money.test.ts`, `lib/format.test.ts`
+- Create: `src/web/lang.ts`, `src/web/money.ts`, `src/web/format.ts`
+- Test: `tests/web/money.test.ts`, `tests/web/format.test.ts`
 
 **Interfaces:**
 - Produces:
@@ -151,11 +182,11 @@ git commit -m "chore(web): scaffold CentMe frontend tooling"
 
 - [ ] **Step 1: Write the failing tests**
 
-`lib/money.test.ts`:
+`tests/web/money.test.ts`:
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { estimateQuote, formatMinor, formatRate, formatTokenUnits, minorToInput, parseUsdInput } from "./money";
+import { estimateQuote, formatMinor, formatRate, formatTokenUnits, minorToInput, parseUsdInput } from "@/web/money";
 
 describe("parseUsdInput", () => {
   it.each([
@@ -213,11 +244,11 @@ describe("formatting", () => {
 });
 ```
 
-`lib/format.test.ts`:
+`tests/web/format.test.ts`:
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { formatCountdown, initials, maskAccount, shortHash } from "./format";
+import { formatCountdown, initials, maskAccount, shortHash } from "@/web/format";
 
 describe("format", () => {
   it("masks the account to the last four characters", () => {
@@ -242,19 +273,19 @@ describe("format", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run lib/money.test.ts lib/format.test.ts`
+Run: `pnpm vitest run tests/web/money.test.ts tests/web/format.test.ts`
 Expected: FAIL, cannot resolve `./money` and `./format`.
 
 - [ ] **Step 3: Implement**
 
-`lib/lang.ts`:
+`src/web/lang.ts`:
 
 ```ts
 export type Lang = "en" | "th";
 export const LOCALE: Record<Lang, string> = { en: "en-US", th: "th-TH" };
 ```
 
-`lib/money.ts`:
+`src/web/money.ts`:
 
 ```ts
 import { LOCALE, type Lang } from "./lang";
@@ -337,7 +368,7 @@ export function minorToInput(minor: string): string {
 }
 ```
 
-`lib/format.ts`:
+`src/web/format.ts`:
 
 ```ts
 import { LOCALE, type Lang } from "./lang";
@@ -366,13 +397,13 @@ export function formatDateTime(iso: string, lang: Lang): string {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run lib/money.test.ts lib/format.test.ts`
+Run: `pnpm vitest run tests/web/money.test.ts tests/web/format.test.ts`
 Expected: PASS (all).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/lang.ts lib/money.ts lib/format.ts lib/money.test.ts lib/format.test.ts
+git add src/web/lang.ts src/web/money.ts src/web/format.ts tests/web/money.test.ts tests/web/format.test.ts
 git commit -m "feat(web): BigInt money parsing, fixture estimate and formatters"
 ```
 
@@ -381,22 +412,22 @@ git commit -m "feat(web): BigInt money parsing, fixture estimate and formatters"
 ### Task 3: Contract types and zod schemas
 
 **Files:**
-- Create: `lib/api/types.ts`, `lib/api/fixtures.ts`
-- Test: `lib/api/types.test.ts`
+- Create: `src/web/api/types.ts`, `src/web/api/fixtures.ts`
+- Test: `tests/web/api/types.test.ts`
 
 **Interfaces:**
-- Produces from `types.ts`: constants `TRANSFER_STATUSES`, `NEXT_ACTIONS`, `DEMO_SCENARIOS`, `FUNDING_STATUSES`, `SETTLEMENT_STATUSES`, `PAYOUT_STATUSES`; schemas `MetaSchema`, `SessionSchema`, `RecipientSchema`, `RecipientsSchema`, `QuoteSchema`, `TransferSnapshotSchema`, `ErrorEnvelopeSchema`, `envelope(schema)`; types `Session`, `Recipient`, `Quote`, `TransferSnapshot`, `TransferStatus`, `NextAction`, `DemoScenario`.
+- Produces from `types.ts`: constants `TRANSFER_STATUSES`, `NEXT_ACTIONS`, `DEMO_SCENARIOS`, `CHECK_SCENARIOS`, `NOTIFICATION_STATUSES`, `FUNDING_STATUSES`, `SETTLEMENT_STATUSES`, `PAYOUT_STATUSES`; schemas `MetaSchema`, `SessionSchema`, `RecipientSchema`, `RecipientsSchema`, `QuoteSchema`, `TransferSnapshotSchema`, `ErrorEnvelopeSchema`, `envelope(schema)`; types `Session`, `Recipient`, `Quote`, `TransferSnapshot`, `TransferStatus`, `NextAction`, `DemoScenario`, `CheckScenario`.
 - Produces from `fixtures.ts`: `contractQuoteExample: Quote`, `contractSnapshotExample: TransferSnapshot`, `snapshotWith(patch): TransferSnapshot`.
-- Frontend-only extension: `settlement.mode` and `quote.settlementMode` also allow `"MOCK"` (the real backend never sends it). `notification` is optional (requested from person 3).
+- Frontend-only extension: `settlement.mode` and `quote.settlementMode` also allow `"MOCK"` (the real backend never sends it). `quote.checks` is optional so person 2's quote validates before and after simulated checks land. `notification` mirrors backend v1: always present, `NOTIFICATION_STATUSES`, `sentAt`.
 
 - [ ] **Step 1: Write the failing test**
 
-`lib/api/types.test.ts`:
+`tests/web/api/types.test.ts`:
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { contractQuoteExample, contractSnapshotExample } from "./fixtures";
-import { envelope, ErrorEnvelopeSchema, QuoteSchema, TransferSnapshotSchema } from "./types";
+import { contractQuoteExample, contractSnapshotExample } from "@/web/api/fixtures";
+import { envelope, ErrorEnvelopeSchema, QuoteSchema, TransferSnapshotSchema } from "@/web/api/types";
 
 const meta = { requestId: "req_1", apiVersion: "v1", replayed: false };
 
@@ -407,6 +438,11 @@ describe("contract schemas", () => {
   });
   it("reject decimal money strings", () => {
     expect(QuoteSchema.safeParse({ ...contractQuoteExample, feeMinor: "0.20" }).success).toBe(false);
+  });
+  it("accept a quote with passing simulated checks and reject any other result", () => {
+    const checks = { mode: "SIMULATED", result: "PASS", reference: "check_demo_001" };
+    expect(QuoteSchema.safeParse({ ...contractQuoteExample, checks }).success).toBe(true);
+    expect(QuoteSchema.safeParse({ ...contractQuoteExample, checks: { ...checks, result: "REVIEW" } }).success).toBe(false);
   });
   it("reject non-https explorer URLs", () => {
     const bad = {
@@ -427,12 +463,12 @@ describe("contract schemas", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run lib/api/types.test.ts`
+Run: `pnpm vitest run tests/web/api/types.test.ts`
 Expected: FAIL, cannot resolve `./fixtures`.
 
 - [ ] **Step 3: Implement**
 
-`lib/api/types.ts`:
+`src/web/api/types.ts`:
 
 ```ts
 import { z } from "zod";
@@ -443,9 +479,11 @@ export const TRANSFER_STATUSES = [
 ] as const;
 export const NEXT_ACTIONS = ["SIMULATE_FUNDING", "ADVANCE", "RETRY_PAYOUT", "NONE"] as const;
 export const DEMO_SCENARIOS = ["HAPPY_PATH", "FUNDING_DECLINED", "PAYOUT_FAILED"] as const;
+export const CHECK_SCENARIOS = ["PASS", "REJECT", "REVIEW"] as const;
 export const FUNDING_STATUSES = ["PENDING", "ACCEPTED", "DECLINED"] as const;
 export const SETTLEMENT_STATUSES = ["NOT_STARTED", "PREPARING", "BROADCAST", "PENDING", "CONFIRMED", "FAILED", "REVIEW_REQUIRED"] as const;
 export const PAYOUT_STATUSES = ["NOT_STARTED", "PENDING", "PAID", "FAILED", "UNKNOWN"] as const;
+export const NOTIFICATION_STATUSES = ["NOT_STARTED", "PENDING", "SENT", "FAILED", "DISABLED"] as const;
 
 const minor = z.string().regex(/^(0|[1-9]\d*)$/, "expected an integer string");
 const iso = z.string().min(1);
@@ -469,6 +507,7 @@ export const QuoteSchema = z.object({
   fixtureVersion: z.string(), createdAt: iso, expiresAt: iso, mode: z.literal("DEMO"),
   fundingSimulated: z.boolean(), fxSimulated: z.boolean(), payoutSimulated: z.boolean(),
   settlementMode: z.enum(["TESTNET", "MOCK"]), chainId: z.number().int(), arrivalEstimate: z.string().nullable(),
+  checks: z.object({ mode: z.literal("SIMULATED"), result: z.literal("PASS"), reference: z.string() }).optional(),
 });
 
 export const TransferSnapshotSchema = z.object({
@@ -501,7 +540,7 @@ export const TransferSnapshotSchema = z.object({
     verifiedAt: iso.nullable(),
   }),
   payout: z.object({ mode: z.literal("SIMULATED"), status: z.enum(PAYOUT_STATUSES), reference: z.string().nullable() }),
-  notification: z.object({ channel: z.literal("NTFY"), status: z.enum(["NOT_SENT", "SENT", "FAILED"]) }).optional(),
+  notification: z.object({ channel: z.literal("NTFY"), status: z.enum(NOTIFICATION_STATUSES), sentAt: iso.nullable() }),
   events: z.array(z.object({ sequence: z.number().int(), status: z.string(), createdAt: iso })),
   lastIssue: z.object({ code: z.string(), message: z.string(), retryable: z.boolean() }).nullable(),
   nextAction: z.enum(NEXT_ACTIONS),
@@ -531,9 +570,10 @@ export type TransferSnapshot = z.infer<typeof TransferSnapshotSchema>;
 export type TransferStatus = (typeof TRANSFER_STATUSES)[number];
 export type NextAction = (typeof NEXT_ACTIONS)[number];
 export type DemoScenario = (typeof DEMO_SCENARIOS)[number];
+export type CheckScenario = (typeof CHECK_SCENARIOS)[number];
 ```
 
-`lib/api/fixtures.ts` (copied from `docs/api-contract.md` sections 4 and 6; documentation fixtures, not real transfers):
+`src/web/api/fixtures.ts` (copied from `docs/api-contract.md` sections 4 and 6; documentation fixtures, not real transfers):
 
 ```ts
 import type { Quote, TransferSnapshot, TransferStatus, NextAction } from "./types";
@@ -602,6 +642,7 @@ export const contractSnapshotExample: TransferSnapshot = {
     verifiedAt: null,
   },
   payout: { mode: "SIMULATED", status: "NOT_STARTED", reference: null },
+  notification: { channel: "NTFY", status: "NOT_STARTED", sentAt: null },
   events: [
     { sequence: 1, status: "FUNDING_PENDING", createdAt: "2026-10-15T15:01:00Z" },
     { sequence: 2, status: "FUNDED_SIMULATED", createdAt: "2026-10-15T15:01:02Z" },
@@ -646,13 +687,13 @@ export function snapshotWith(patch: Patch): TransferSnapshot {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run lib/api/types.test.ts`
+Run: `pnpm vitest run tests/web/api/types.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/api/types.ts lib/api/fixtures.ts lib/api/types.test.ts
+git add src/web/api/types.ts src/web/api/fixtures.ts tests/web/api/types.test.ts
 git commit -m "feat(web): contract types and zod schemas"
 ```
 
@@ -661,22 +702,22 @@ git commit -m "feat(web): contract types and zod schemas"
 ### Task 4: i18n dictionaries and translate
 
 **Files:**
-- Create: `lib/i18n/en.ts`, `lib/i18n/th.ts`, `lib/i18n/translate.ts`, `lib/i18n/LanguageProvider.tsx`
-- Test: `lib/i18n/translate.test.ts`
+- Create: `src/web/i18n/en.ts`, `src/web/i18n/th.ts`, `src/web/i18n/translate.ts`, `src/web/i18n/LanguageProvider.tsx`
+- Test: `tests/web/i18n/translate.test.ts`
 
 **Interfaces:**
-- Consumes: `Lang` from `lib/lang.ts`.
+- Consumes: `Lang` from `src/web/lang.ts`.
 - Produces: `type MessageKey`, `en`, `th`, `type TFn = (key: MessageKey, vars?: Record<string, string>) => string`, `translate(lang, key, vars?)`, `<LanguageProvider>`, `useT(): { lang: Lang; setLang(l: Lang): void; t: TFn }`.
 
 - [ ] **Step 1: Write the failing test**
 
-`lib/i18n/translate.test.ts`:
+`tests/web/i18n/translate.test.ts`:
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { en, type MessageKey } from "./en";
-import { th } from "./th";
-import { translate } from "./translate";
+import { en, type MessageKey } from "@/web/i18n/en";
+import { th } from "@/web/i18n/th";
+import { translate } from "@/web/i18n/translate";
 
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
@@ -704,12 +745,12 @@ describe("i18n", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run lib/i18n/translate.test.ts`
+Run: `pnpm vitest run tests/web/i18n/translate.test.ts`
 Expected: FAIL, cannot resolve `./en`.
 
 - [ ] **Step 3: Implement dictionaries**
 
-`lib/i18n/en.ts`:
+`src/web/i18n/en.ts`:
 
 ```ts
 export const en = {
@@ -733,7 +774,9 @@ export const en = {
   "send.rate": "Rate",
   "send.arrival": "Arrival",
   "send.timing": "Demo timing only",
-  "send.continue": "Continue",
+  "send.continue": "Get final quote",
+  "checks.CHECKS_REJECTED": "Simulated checks rejected this transfer. No quote was issued.",
+  "checks.CHECKS_REVIEW_REQUIRED": "Held for review (simulated). No quote was issued.",
   "review.title": "Check before you send",
   "review.youSend": "You send",
   "review.edit": "Edit",
@@ -742,6 +785,8 @@ export const en = {
   "review.pay": "Pay {amount}",
   "review.newQuote": "Get new quote",
   "review.alreadyUsed": "This quote was already used. Please start again.",
+  "review.checks": "Checks",
+  "review.checksPassed": "Passed",
   "sheet.title": "Confirm payment",
   "sheet.simNote": "Simulated bank payment. No real money moves.",
   "sheet.from": "Pay from",
@@ -805,6 +850,10 @@ export const en = {
   "demo.HAPPY_PATH": "Happy path",
   "demo.FUNDING_DECLINED": "Funding declined",
   "demo.PAYOUT_FAILED": "Payout failed",
+  "demo.checks": "Checks",
+  "demo.check.PASS": "Pass",
+  "demo.check.REJECT": "Reject",
+  "demo.check.REVIEW": "Review",
   "demo.endpoints": "Endpoints",
   "demo.reset": "Reset mock data",
   "demo.close": "Close presenter panel",
@@ -813,7 +862,7 @@ export const en = {
 export type MessageKey = keyof typeof en;
 ```
 
-`lib/i18n/th.ts`:
+`src/web/i18n/th.ts`:
 
 ```ts
 import type { MessageKey } from "./en";
@@ -839,7 +888,9 @@ export const th: Record<MessageKey, string> = {
   "send.rate": "อัตราแลกเปลี่ยน",
   "send.arrival": "ระยะเวลา",
   "send.timing": "เวลาสำหรับเดโมเท่านั้น",
-  "send.continue": "ดำเนินการต่อ",
+  "send.continue": "ขอราคาจริง",
+  "checks.CHECKS_REJECTED": "การตรวจสอบจำลองไม่ผ่าน ไม่มีการออกราคา",
+  "checks.CHECKS_REVIEW_REQUIRED": "รอตรวจสอบเพิ่มเติม (จำลอง) ไม่มีการออกราคา",
   "review.title": "ตรวจสอบก่อนโอน",
   "review.youSend": "คุณโอน",
   "review.edit": "แก้ไข",
@@ -848,6 +899,8 @@ export const th: Record<MessageKey, string> = {
   "review.pay": "ชำระ {amount}",
   "review.newQuote": "ขอราคาใหม่",
   "review.alreadyUsed": "ราคานี้ถูกใช้ไปแล้ว กรุณาเริ่มใหม่",
+  "review.checks": "การตรวจสอบ",
+  "review.checksPassed": "ผ่าน",
   "sheet.title": "ยืนยันการชำระเงิน",
   "sheet.simNote": "การชำระเงินผ่านธนาคารแบบจำลอง ไม่มีการตัดเงินจริง",
   "sheet.from": "ชำระจาก",
@@ -911,13 +964,17 @@ export const th: Record<MessageKey, string> = {
   "demo.HAPPY_PATH": "เส้นทางปกติ",
   "demo.FUNDING_DECLINED": "การชำระเงินถูกปฏิเสธ",
   "demo.PAYOUT_FAILED": "โอนเข้าธนาคารล้มเหลว",
+  "demo.checks": "การตรวจสอบ",
+  "demo.check.PASS": "ผ่าน",
+  "demo.check.REJECT": "ไม่ผ่าน",
+  "demo.check.REVIEW": "รอตรวจสอบ",
   "demo.endpoints": "Endpoints",
   "demo.reset": "ล้างข้อมูลจำลอง",
   "demo.close": "ปิดแผงผู้นำเสนอ",
 };
 ```
 
-`lib/i18n/translate.ts`:
+`src/web/i18n/translate.ts`:
 
 ```ts
 import type { Lang } from "../lang";
@@ -935,7 +992,7 @@ export function translate(lang: Lang, key: MessageKey, vars?: Record<string, str
 }
 ```
 
-`lib/i18n/LanguageProvider.tsx`:
+`src/web/i18n/LanguageProvider.tsx`:
 
 ```tsx
 "use client";
@@ -989,13 +1046,13 @@ export function useT(): LanguageContextValue {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run lib/i18n/translate.test.ts`
+Run: `pnpm vitest run tests/web/i18n/translate.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/i18n
+git add src/web/i18n
 git commit -m "feat(web): EN/TH dictionaries and language provider"
 ```
 
@@ -1004,8 +1061,8 @@ git commit -m "feat(web): EN/TH dictionaries and language provider"
 ### Task 5: Status → timeline view model
 
 **Files:**
-- Create: `lib/status.ts`
-- Test: `lib/status.test.ts`
+- Create: `src/web/status.ts`
+- Test: `tests/web/status.test.ts`
 
 **Interfaces:**
 - Consumes: `TransferSnapshot` (Task 3), `MessageKey` (Task 4), `snapshotWith` (tests).
@@ -1020,13 +1077,13 @@ git commit -m "feat(web): EN/TH dictionaries and language provider"
 
 - [ ] **Step 1: Write the failing test**
 
-`lib/status.test.ts`:
+`tests/web/status.test.ts`:
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { snapshotWith } from "./api/fixtures";
-import type { TransferSnapshot } from "./api/types";
-import { stepTime, toView } from "./status";
+import { snapshotWith } from "@/web/api/fixtures";
+import type { TransferSnapshot } from "@/web/api/types";
+import { stepTime, toView } from "@/web/status";
 
 const states = (s: TransferSnapshot) => toView(s).steps.map((x) => x.state);
 
@@ -1080,7 +1137,7 @@ describe("toView", () => {
     const v = toView(snapshotWith({
       status: "SETTLEMENT_PENDING",
       lastIssue: { code: "RPC_TIMEOUT", message: "Settlement outcome is not confirmed yet.", retryable: true },
-      notification: { channel: "NTFY", status: "SENT" },
+      notification: { channel: "NTFY", status: "SENT", sentAt: "2026-10-15T15:02:00Z" },
     }));
     expect(v.issueMessage).toBe("Settlement outcome is not confirmed yet.");
     expect(v.notified).toBe(true);
@@ -1099,12 +1156,12 @@ describe("stepTime", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run lib/status.test.ts`
+Run: `pnpm vitest run tests/web/status.test.ts`
 Expected: FAIL, cannot resolve `./status`.
 
 - [ ] **Step 3: Implement**
 
-`lib/status.ts`:
+`src/web/status.ts`:
 
 ```ts
 import type { TransferSnapshot } from "./api/types";
@@ -1155,7 +1212,7 @@ function holdStates(s: TransferSnapshot): States {
 export function toView(s: TransferSnapshot): TransferView {
   const base = {
     issueMessage: s.lastIssue?.message ?? null,
-    notified: s.notification?.status === "SENT",
+    notified: s.notification.status === "SENT",
     showReceipt: false,
     action: null as PrimaryAction,
   };
@@ -1204,13 +1261,13 @@ export function stepTime(s: TransferSnapshot, id: StepId): string | null {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run lib/status.test.ts`
+Run: `pnpm vitest run tests/web/status.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/status.ts lib/status.test.ts
+git add src/web/status.ts tests/web/status.test.ts
 git commit -m "feat(web): map transfer snapshots to timeline view"
 ```
 
@@ -1219,8 +1276,8 @@ git commit -m "feat(web): map transfer snapshots to timeline view"
 ### Task 6: API client, real fetch client, routing, storage and idempotency
 
 **Files:**
-- Create: `lib/storage.ts`, `lib/idempotency.ts`, `lib/api/errors.ts`, `lib/api/client.ts`, `lib/api/real.ts`, `lib/api/index.ts`, `lib/i18n/errorText.ts`
-- Test: `lib/idempotency.test.ts`, `lib/api/real.test.ts`, `lib/api/index.test.ts`
+- Create: `src/web/storage.ts`, `src/web/idempotency.ts`, `src/web/api/errors.ts`, `src/web/api/client.ts`, `src/web/api/real.ts`, `src/web/api/index.ts`, `src/web/i18n/errorText.ts`
+- Test: `tests/web/idempotency.test.ts`, `tests/web/api/real.test.ts`, `tests/web/api/index.test.ts`
 
 **Interfaces:**
 - Consumes: schemas/types (Task 3), `TFn` (Task 4).
@@ -1235,12 +1292,12 @@ git commit -m "feat(web): map transfer snapshots to timeline view"
 
 - [ ] **Step 1: Write the failing tests**
 
-`lib/idempotency.test.ts`:
+`tests/web/idempotency.test.ts`:
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { getOrCreateKey, uuidV4 } from "./idempotency";
-import { memoryStore } from "./storage";
+import { getOrCreateKey, uuidV4 } from "@/web/idempotency";
+import { memoryStore } from "@/web/storage";
 
 describe("idempotency keys", () => {
   it("generates v4 UUIDs without crypto.randomUUID", () => {
@@ -1255,13 +1312,13 @@ describe("idempotency keys", () => {
 });
 ```
 
-`lib/api/real.test.ts`:
+`tests/web/api/real.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, NetworkError } from "./errors";
-import { contractQuoteExample, contractSnapshotExample } from "./fixtures";
-import { createRealClient } from "./real";
+import { ApiError, NetworkError } from "@/web/api/errors";
+import { contractQuoteExample, contractSnapshotExample } from "@/web/api/fixtures";
+import { createRealClient } from "@/web/api/real";
 
 const meta = { requestId: "req_1", apiVersion: "v1", replayed: false };
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
@@ -1328,13 +1385,13 @@ describe("real client", () => {
 });
 ```
 
-`lib/api/index.test.ts`:
+`tests/web/api/index.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
-import type { ApiClient } from "./client";
-import { contractQuoteExample } from "./fixtures";
-import { createRoutedClient, parseRealEndpoints } from "./index";
+import type { ApiClient } from "@/web/api/client";
+import { contractQuoteExample } from "@/web/api/fixtures";
+import { createRoutedClient, parseRealEndpoints } from "@/web/api/index";
 
 function stubClient(name: string): ApiClient {
   const fn = () => vi.fn().mockResolvedValue(name);
@@ -1365,12 +1422,12 @@ describe("endpoint routing", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run lib/idempotency.test.ts lib/api/real.test.ts lib/api/index.test.ts`
+Run: `pnpm vitest run tests/web/idempotency.test.ts tests/web/api/real.test.ts tests/web/api/index.test.ts`
 Expected: FAIL, modules not found.
 
 - [ ] **Step 3: Implement**
 
-`lib/storage.ts`:
+`src/web/storage.ts`:
 
 ```ts
 export interface KeyValueStore {
@@ -1414,7 +1471,7 @@ export function browserStorage(kind: "local" | "session"): KeyValueStore {
 }
 ```
 
-`lib/idempotency.ts`:
+`src/web/idempotency.ts`:
 
 ```ts
 import { browserStorage, type KeyValueStore } from "./storage";
@@ -1439,7 +1496,7 @@ export function getOrCreateKey(name: string, store: KeyValueStore = browserStora
 }
 ```
 
-`lib/api/errors.ts`:
+`src/web/api/errors.ts`:
 
 ```ts
 export type ApiErrorInit = {
@@ -1486,12 +1543,13 @@ export function isApiError(e: unknown, code?: string): e is ApiError {
 }
 ```
 
-`lib/api/client.ts`:
+`src/web/api/client.ts`:
 
 ```ts
 import type { DemoScenario, Quote, Recipient, Session, TransferSnapshot } from "./types";
 
-export type CreateQuoteInput = { recipientId: string; sourceDebitMinor: string };
+/** `demoCheckScenario` is sent only when not PASS, so a backend without the field still accepts the default request. */
+export type CreateQuoteInput = { recipientId: string; sourceDebitMinor: string; demoCheckScenario?: "REJECT" | "REVIEW" };
 export type CreateTransferInput = { quoteId: string; purpose: "PERSONAL_REMITTANCE"; demoScenario: DemoScenario };
 
 export interface ApiClient {
@@ -1506,7 +1564,7 @@ export interface ApiClient {
 }
 ```
 
-`lib/api/real.ts`:
+`src/web/api/real.ts`:
 
 ```ts
 import type { z } from "zod";
@@ -1592,7 +1650,7 @@ export function createRealClient(
 }
 ```
 
-`lib/api/index.ts`:
+`src/web/api/index.ts`:
 
 ```ts
 import type { ApiClient } from "./client";
@@ -1634,7 +1692,7 @@ export function createRoutedClient(modes: EndpointModes, real: ApiClient, mock: 
 }
 ```
 
-`lib/i18n/errorText.ts`:
+`src/web/i18n/errorText.ts`:
 
 ```ts
 import { ApiError, NetworkError } from "../api/errors";
@@ -1652,13 +1710,13 @@ export function errorText(e: unknown, t: TFn): string {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run lib/idempotency.test.ts lib/api/real.test.ts lib/api/index.test.ts`
+Run: `pnpm vitest run tests/web/idempotency.test.ts tests/web/api/real.test.ts tests/web/api/index.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/storage.ts lib/idempotency.ts lib/idempotency.test.ts lib/api lib/i18n/errorText.ts
+git add src/web/storage.ts src/web/idempotency.ts tests/web/idempotency.test.ts src/web/api src/web/i18n/errorText.ts
 git commit -m "feat(web): real API client, per-endpoint routing and idempotency keys"
 ```
 
@@ -1667,13 +1725,13 @@ git commit -m "feat(web): real API client, per-endpoint routing and idempotency 
 ### Task 7: Contract-faithful mock backend and ntfy notifier
 
 **Files:**
-- Create: `lib/api/mock.ts`, `lib/notify.ts`
-- Test: `lib/api/mock.test.ts`, `lib/notify.test.ts`
+- Create: `src/web/api/mock.ts`, `src/web/notify.ts`
+- Test: `tests/web/api/mock.test.ts`, `tests/web/notify.test.ts`
 
 **Interfaces:**
 - Consumes: `ApiClient`, `QuoteMemory`, `ApiError`, `KeyValueStore`/`memoryStore`, `estimateQuote`/`FIXTURE`/`formatMinor`.
 - Produces:
-  - `type NotifyResult = "SENT" | "FAILED" | "NOT_SENT"`, `type Notifier = (s: TransferSnapshot) => Promise<NotifyResult>`
+  - `type NotifyResult = "SENT" | "FAILED" | "DISABLED"`, `type Notifier = (s: TransferSnapshot) => Promise<NotifyResult>`
   - `MOCK_RECIPIENT: Recipient`
   - `type MockClient = ApiClient & QuoteMemory & { reset(): void }`
   - `createMockClient(opts?: { storage?: KeyValueStore; now?: () => Date; notify?: Notifier; delayMs?: number }): MockClient`
@@ -1681,14 +1739,14 @@ git commit -m "feat(web): real API client, per-endpoint routing and idempotency 
 
 - [ ] **Step 1: Write the failing tests**
 
-`lib/api/mock.test.ts`:
+`tests/web/api/mock.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
-import { memoryStore } from "../storage";
-import { ApiError } from "./errors";
-import { createMockClient, MOCK_RECIPIENT } from "./mock";
-import type { DemoScenario, TransferSnapshot } from "./types";
+import { memoryStore } from "@/web/storage";
+import { ApiError } from "@/web/api/errors";
+import { createMockClient, MOCK_RECIPIENT } from "@/web/api/mock";
+import type { DemoScenario, TransferSnapshot } from "@/web/api/types";
 
 async function start(scenario: DemoScenario = "HAPPY_PATH", opts: Parameters<typeof createMockClient>[0] = {}) {
   const api = createMockClient(opts);
@@ -1725,7 +1783,8 @@ describe("mock backend", () => {
     expect(last.settlement).toMatchObject({ mode: "MOCK", status: "CONFIRMED", explorerUrl: null });
     expect(last.settlement.txHash).toMatch(/^mock-0x[0-9a-f]{64}$/);
     expect(last.receipt).not.toBeNull();
-    expect(last.notification).toEqual({ channel: "NTFY", status: "SENT" });
+    expect(last.notification).toMatchObject({ channel: "NTFY", status: "SENT" });
+    expect(last.notification.sentAt).not.toBeNull();
     expect(notify).toHaveBeenCalledTimes(1);
     const versions = seen.map((s) => s.version);
     expect([...versions].sort((a, b) => a - b)).toEqual(versions);
@@ -1786,6 +1845,20 @@ describe("mock backend", () => {
     expect(err).toMatchObject({ status: 410, code: "QUOTE_EXPIRED" });
   });
 
+  it("runs simulated checks on quotes", async () => {
+    const api = createMockClient();
+    const pass = await api.createQuote({ recipientId: MOCK_RECIPIENT.id, sourceDebitMinor: "1000" });
+    expect(pass.checks).toMatchObject({ mode: "SIMULATED", result: "PASS" });
+    const rejected = await api
+      .createQuote({ recipientId: MOCK_RECIPIENT.id, sourceDebitMinor: "1000", demoCheckScenario: "REJECT" })
+      .catch((e) => e);
+    expect(rejected).toMatchObject({ status: 422, code: "CHECKS_REJECTED", retryable: false });
+    const review = await api
+      .createQuote({ recipientId: MOCK_RECIPIENT.id, sourceDebitMinor: "1000", demoCheckScenario: "REVIEW" })
+      .catch((e) => e);
+    expect(review).toMatchObject({ status: 422, code: "CHECKS_REVIEW_REQUIRED", retryable: false });
+  });
+
   it("rejects out-of-range amounts with field errors", async () => {
     const api = createMockClient();
     const err = await api.createQuote({ recipientId: MOCK_RECIPIENT.id, sourceDebitMinor: "10001" }).catch((e) => e);
@@ -1805,17 +1878,17 @@ describe("mock backend", () => {
 });
 ```
 
-`lib/notify.test.ts`:
+`tests/web/notify.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
-import { snapshotWith } from "./api/fixtures";
-import { notificationText, ntfyNotifier } from "./notify";
+import { snapshotWith } from "@/web/api/fixtures";
+import { notificationText, ntfyNotifier } from "@/web/notify";
 
 describe("ntfy notifier", () => {
   it("does nothing without a topic", async () => {
     const fetchImpl = vi.fn();
-    expect(await ntfyNotifier(undefined, fetchImpl)(snapshotWith({ status: "COMPLETED_SIMULATED" }))).toBe("NOT_SENT");
+    expect(await ntfyNotifier(undefined, fetchImpl)(snapshotWith({ status: "COMPLETED_SIMULATED" }))).toBe("DISABLED");
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -1843,18 +1916,18 @@ describe("ntfy notifier", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run lib/api/mock.test.ts lib/notify.test.ts`
+Run: `pnpm vitest run tests/web/api/mock.test.ts tests/web/notify.test.ts`
 Expected: FAIL, modules not found.
 
 - [ ] **Step 3: Implement**
 
-`lib/notify.ts`:
+`src/web/notify.ts`:
 
 ```ts
 import type { TransferSnapshot } from "./api/types";
 import { formatMinor } from "./money";
 
-export type NotifyResult = "SENT" | "FAILED" | "NOT_SENT";
+export type NotifyResult = "SENT" | "FAILED" | "DISABLED";
 export type Notifier = (s: TransferSnapshot) => Promise<NotifyResult>;
 
 export function notificationText(s: TransferSnapshot): string {
@@ -1870,7 +1943,7 @@ export function ntfyNotifier(
   fetchImpl: typeof fetch = (input, init) => fetch(input, init),
 ): Notifier {
   return async (s) => {
-    if (!topic) return "NOT_SENT";
+    if (!topic) return "DISABLED";
     try {
       const res = await fetchImpl(`https://ntfy.sh/${encodeURIComponent(topic)}`, {
         method: "POST",
@@ -1885,7 +1958,7 @@ export function ntfyNotifier(
 }
 ```
 
-`lib/api/mock.ts`:
+`src/web/api/mock.ts`:
 
 ```ts
 import { estimateQuote, FIXTURE } from "../money";
@@ -1934,7 +2007,7 @@ export function createMockClient(
 ): MockClient {
   const storage = opts.storage ?? memoryStore();
   const now = opts.now ?? (() => new Date());
-  const notify: Notifier = opts.notify ?? (async () => "NOT_SENT");
+  const notify: Notifier = opts.notify ?? (async () => "DISABLED");
   const delayMs = opts.delayMs ?? 0;
 
   let state: MockState = (() => {
@@ -1996,7 +2069,7 @@ export function createMockClient(
       return [clone(MOCK_RECIPIENT)];
     },
 
-    async createQuote({ recipientId, sourceDebitMinor }) {
+    async createQuote({ recipientId, sourceDebitMinor, demoCheckScenario }) {
       if (recipientId !== MOCK_RECIPIENT.id) throw fail(404, "NOT_FOUND", "Recipient not found.");
       if (!/^[1-9]\d*$/.test(sourceDebitMinor)) {
         throw fail(400, "INVALID_INPUT", "Invalid amount.", { sourceDebitMinor: "Use whole cents." });
@@ -2005,6 +2078,9 @@ export function createMockClient(
       if (debit < FIXTURE.minDebitMinor || debit > FIXTURE.maxDebitMinor) {
         throw fail(400, "INVALID_INPUT", "Amount out of range.", { sourceDebitMinor: "USD 1.00 to 100.00 only." });
       }
+      // Simulated checks run before a quote exists; a blocked check stores no quote.
+      if (demoCheckScenario === "REJECT") throw fail(422, "CHECKS_REJECTED", "Simulated checks rejected this transfer.");
+      if (demoCheckScenario === "REVIEW") throw fail(422, "CHECKS_REVIEW_REQUIRED", "Held for review (simulated). No quote issued.");
       const created = now();
       const quote: Quote = {
         id: nextId("mock_quote"),
@@ -2026,6 +2102,7 @@ export function createMockClient(
         settlementMode: "MOCK",
         chainId: 43113,
         arrivalEstimate: null,
+        checks: { mode: "SIMULATED", result: "PASS", reference: nextId("mock_check") },
       };
       state.quotes[quote.id] = { quote, state: "OPEN" };
       save();
@@ -2092,7 +2169,7 @@ export function createMockClient(
           verifiedAt: null,
         },
         payout: { mode: "SIMULATED", status: "NOT_STARTED", reference: null },
-        notification: { channel: "NTFY", status: "NOT_SENT" },
+        notification: { channel: "NTFY", status: "NOT_STARTED", sentAt: null },
         events: [{ sequence: 1, status: "FUNDING_PENDING", createdAt: at }],
         lastIssue: null,
         nextAction: "SIMULATE_FUNDING",
@@ -2159,7 +2236,7 @@ export function createMockClient(
               receipt: { id: nextId("mock_receipt"), issuedAt: iso(), summary: "Demo completed: mock settlement; THB payout simulated." },
             });
             const result: NotifyResult = await notify(clone(r.snapshot)).catch(() => "FAILED" as const);
-            if (result !== "NOT_SENT") patchOnly(r, { notification: { channel: "NTFY", status: result } });
+            patchOnly(r, { notification: { channel: "NTFY", status: result, sentAt: result === "SENT" ? iso() : null } });
           }
           break;
         default:
@@ -2193,13 +2270,13 @@ export function createMockClient(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run lib/api/mock.test.ts lib/notify.test.ts`
+Run: `pnpm vitest run tests/web/api/mock.test.ts tests/web/notify.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/api/mock.ts lib/api/mock.test.ts lib/notify.ts lib/notify.test.ts
+git add src/web/api/mock.ts tests/web/api/mock.test.ts src/web/notify.ts tests/web/notify.test.ts
 git commit -m "feat(web): contract-faithful mock backend and ntfy notifier"
 ```
 
@@ -2208,8 +2285,8 @@ git commit -m "feat(web): contract-faithful mock backend and ntfy notifier"
 ### Task 8: Transfer poller and React hook
 
 **Files:**
-- Create: `lib/transferPoller.ts`, `lib/useTransfer.ts`
-- Test: `lib/transferPoller.test.ts`
+- Create: `src/web/transferPoller.ts`, `src/web/useTransfer.ts`
+- Test: `tests/web/transferPoller.test.ts`
 
 **Interfaces:**
 - Consumes: `ApiClient`, `TransferSnapshot`, `createMockClient`, `isApiError`; `useApi()` from Task 9 (the hook file is only compiled by the build after Task 9 exists; write it now, it is exercised in Task 12).
@@ -2222,14 +2299,14 @@ git commit -m "feat(web): contract-faithful mock backend and ntfy notifier"
 
 - [ ] **Step 1: Write the failing test**
 
-`lib/transferPoller.test.ts`:
+`tests/web/transferPoller.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
-import { snapshotWith } from "./api/fixtures";
-import { createMockClient, MOCK_RECIPIENT } from "./api/mock";
-import type { TransferSnapshot } from "./api/types";
-import { backoffDelay, startTransferPoller, type Schedule } from "./transferPoller";
+import { snapshotWith } from "@/web/api/fixtures";
+import { createMockClient, MOCK_RECIPIENT } from "@/web/api/mock";
+import type { TransferSnapshot } from "@/web/api/types";
+import { backoffDelay, startTransferPoller, type Schedule } from "@/web/transferPoller";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -2328,12 +2405,12 @@ describe("transfer poller", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run lib/transferPoller.test.ts`
+Run: `pnpm vitest run tests/web/transferPoller.test.ts`
 Expected: FAIL, cannot resolve `./transferPoller`.
 
 - [ ] **Step 3: Implement**
 
-`lib/transferPoller.ts`:
+`src/web/transferPoller.ts`:
 
 ```ts
 import type { ApiClient } from "./api/client";
@@ -2418,7 +2495,7 @@ export function startTransferPoller(
 }
 ```
 
-`lib/useTransfer.ts`:
+`src/web/useTransfer.ts`:
 
 ```ts
 "use client";
@@ -2460,18 +2537,18 @@ export function useTransfer(id: string) {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run lib/transferPoller.test.ts`
+Run: `pnpm vitest run tests/web/transferPoller.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Run the whole suite**
 
-Run: `npm test`
+Run: `pnpm vitest run tests/web`
 Expected: PASS, all test files.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lib/transferPoller.ts lib/transferPoller.test.ts lib/useTransfer.ts
+git add src/web/transferPoller.ts tests/web/transferPoller.test.ts src/web/useTransfer.ts
 git commit -m "feat(web): single-flight transfer poller with backoff"
 ```
 
@@ -2480,8 +2557,8 @@ git commit -m "feat(web): single-flight transfer poller with backoff"
 ### Task 9: App shell, tokens, providers and shared UI pieces
 
 **Files:**
-- Modify (full replace): `app/globals.css`, `app/layout.tsx`
-- Create: `app/providers.tsx`, `lib/api/ApiProvider.tsx`, `components/brand/Logo.tsx`, `components/shell/Header.tsx`, `components/shell/MockBanner.tsx`, `components/common/SummaryRow.tsx`, `components/common/EvidenceTag.tsx`
+- Modify (full replace): `src/app/globals.css`, `src/app/layout.tsx`
+- Create: `src/app/providers.tsx`, `src/web/api/ApiProvider.tsx`, `src/components/brand/Logo.tsx`, `src/components/shell/Header.tsx`, `src/components/shell/MockBanner.tsx`, `src/components/common/SummaryRow.tsx`, `src/components/common/EvidenceTag.tsx`
 
 **Interfaces:**
 - Consumes: `createMockClient`, `createRealClient`, `createRoutedClient`, `parseRealEndpoints`, `ntfyNotifier`, `browserStorage`, `LanguageProvider`, `useT`, `EvidenceTagKind`.
@@ -2491,34 +2568,38 @@ git commit -m "feat(web): single-flight transfer poller with backoff"
 
 Invoke the `impeccable` skill in `craft` mode with spec sections 2–4 (screens, ease-of-use rules, visual style) as the brief. Apply its guidance to this task and Tasks 10–12; keep the tokens below as the source of truth. Do not invoke `ui-ux-pro-max` in the same request.
 
-- [ ] **Step 2: Replace `app/globals.css`**
+- [ ] **Step 2: Replace `src/app/globals.css`**
 
 ```css
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Logo palette (spec section 4). shadcn names on the left; spec token in the comment. */
 :root {
   --radius: 0.75rem;
-  --background: #f5faf6;
-  --foreground: #0b2318;
-  --card: #ffffff;
-  --card-foreground: #0b2318;
+  --background: #faf9f5; /* --bg */
+  --foreground: #2e4057; /* --ink */
+  --card: #ffffff; /* --surface */
+  --card-foreground: #2e4057;
   --popover: #ffffff;
-  --popover-foreground: #0b2318;
-  --primary: #9be15d;
-  --primary-foreground: #0b2318;
-  --secondary: #e7f2ea;
-  --secondary-foreground: #0b2318;
-  --muted: #eef5f0;
-  --muted-foreground: #4a5d53;
-  --accent: #e7f2ea;
-  --accent-foreground: #0b2318;
-  --destructive: #dc2626;
-  --border: #d7e5dc;
-  --input: #c9dbcf;
-  --ring: #0f5132;
-  --brand: #0f5132;
+  --popover-foreground: #2e4057;
+  --primary: #8bc34a; /* --cta, text stays navy */
+  --primary-foreground: #2e4057;
+  --secondary: #f1efe8;
+  --secondary-foreground: #2e4057;
+  --muted: #f1efe8;
+  --muted-foreground: #5b6b7d; /* --muted */
+  --accent: #f1efe8; /* shadcn hover surface, not the amber */
+  --accent-foreground: #2e4057;
+  --destructive: #dc2626; /* --danger */
+  --border: #e3e1da;
+  --input: #d6d3ca;
+  --ring: #2e4057;
+  --brand: #2e4057;
   --pending: #b45309;
+  --done: #8bc34a; /* fill only */
+  --done-text: #3f7d20;
+  --highlight: #edae49; /* spec --accent: fill only, never text */
 }
 
 @theme inline {
@@ -2542,6 +2623,9 @@ Invoke the `impeccable` skill in `craft` mode with spec sections 2–4 (screens,
   --color-ring: var(--ring);
   --color-brand: var(--brand);
   --color-pending: var(--pending);
+  --color-done: var(--done);
+  --color-done-text: var(--done-text);
+  --color-highlight: var(--highlight);
   --font-sans: var(--font-plex), var(--font-plex-thai), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
@@ -2575,7 +2659,7 @@ Invoke the `impeccable` skill in `craft` mode with spec sections 2–4 (screens,
 
 - [ ] **Step 3: API provider**
 
-`lib/api/ApiProvider.tsx`:
+`src/web/api/ApiProvider.tsx`:
 
 ```tsx
 "use client";
@@ -2626,14 +2710,14 @@ export function useApi(): ApiContextValue {
 }
 ```
 
-`app/providers.tsx`:
+`src/app/providers.tsx`:
 
 ```tsx
 "use client";
 
 import type { ReactNode } from "react";
-import { ApiProvider } from "@/lib/api/ApiProvider";
-import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
+import { ApiProvider } from "@/web/api/ApiProvider";
+import { LanguageProvider } from "@/web/i18n/LanguageProvider";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -2646,23 +2730,18 @@ export function Providers({ children }: { children: ReactNode }) {
 
 - [ ] **Step 4: Brand, header, banner, shared pieces**
 
-`components/brand/Logo.tsx`:
+`src/components/brand/Logo.tsx`:
 
 ```tsx
-/** Placeholder until the real logo arrives; swap this file only. */
+import Image from "next/image";
+
+/** Wordmark from assets/logo (copied to public/brand in Task 1). Source is 994x354. */
 export function Logo() {
-  return (
-    <span className="inline-flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
-      <span aria-hidden className="grid size-8 place-items-center rounded-full bg-primary text-lg font-bold text-foreground">
-        ¢
-      </span>
-      CentMe
-    </span>
-  );
+  return <Image src="/brand/centme-wordmark.png" alt="CentMe" width={994} height={354} priority className="h-9 w-auto" />;
 }
 ```
 
-`components/shell/Header.tsx`:
+`src/components/shell/Header.tsx`:
 
 ```tsx
 "use client";
@@ -2670,7 +2749,7 @@ export function Logo() {
 import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/lib/i18n/LanguageProvider";
+import { useT } from "@/web/i18n/LanguageProvider";
 
 export function Header() {
   const { t, lang, setLang } = useT();
@@ -2687,7 +2766,7 @@ export function Header() {
           <Logo />
         </Link>
         <div className="flex items-center gap-3">
-          <span className="rounded-full border border-pending/40 bg-pending/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-pending">
+          <span className="rounded-full bg-highlight px-3 py-1 text-xs font-semibold uppercase tracking-wide text-foreground">
             {t("header.testMode")}
           </span>
           <Button variant="ghost" onClick={() => setLang(lang === "en" ? "th" : "en")} aria-label={t("header.langAria")}>
@@ -2700,13 +2779,13 @@ export function Header() {
 }
 ```
 
-`components/shell/MockBanner.tsx`:
+`src/components/shell/MockBanner.tsx`:
 
 ```tsx
 "use client";
 
-import { useApi } from "@/lib/api/ApiProvider";
-import { useT } from "@/lib/i18n/LanguageProvider";
+import { useApi } from "@/web/api/ApiProvider";
+import { useT } from "@/web/i18n/LanguageProvider";
 
 export function MockBanner() {
   const { modes } = useApi();
@@ -2720,11 +2799,11 @@ export function MockBanner() {
 }
 ```
 
-`components/common/SummaryRow.tsx`:
+`src/components/common/SummaryRow.tsx`:
 
 ```tsx
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/web/utils";
 
 export function SummaryRow({ label, value, strong }: { label: string; value: ReactNode; strong?: boolean }) {
   return (
@@ -2736,14 +2815,14 @@ export function SummaryRow({ label, value, strong }: { label: string; value: Rea
 }
 ```
 
-`components/common/EvidenceTag.tsx`:
+`src/components/common/EvidenceTag.tsx`:
 
 ```tsx
 "use client";
 
-import { useT } from "@/lib/i18n/LanguageProvider";
-import type { EvidenceTagKind } from "@/lib/status";
-import { cn } from "@/lib/utils";
+import { useT } from "@/web/i18n/LanguageProvider";
+import type { EvidenceTagKind } from "@/web/status";
+import { cn } from "@/web/utils";
 
 const STYLE: Record<EvidenceTagKind, string> = {
   SIMULATED: "border-dashed border-muted-foreground/60 text-muted-foreground",
@@ -2761,7 +2840,7 @@ export function EvidenceTag({ tag }: { tag: EvidenceTagKind }) {
 }
 ```
 
-- [ ] **Step 5: Replace `app/layout.tsx`**
+- [ ] **Step 5: Replace `src/app/layout.tsx`**
 
 ```tsx
 import type { Metadata } from "next";
@@ -2799,20 +2878,20 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 }
 ```
 
-Replace `app/page.tsx` temporarily with `export default function Home() { return null; }` so the build passes before Task 10.
+Replace `src/app/page.tsx` temporarily with `export default function Home() { return null; }` so the build passes before Task 10.
 
 - [ ] **Step 6: Verify**
 
-Run: `npm test && npm run build`
+Run: `pnpm vitest run tests/web && pnpm lint && pnpm typecheck && pnpm build`
 Expected: tests PASS; build succeeds.
 
-Run: `npm run dev`, open `http://localhost:3000`.
-Expected: white header with lime ¢ CentMe, amber `TEST MODE` pill, `ภาษาไทย` button (toggles to Thai and back, survives refresh), dashed amber MOCK DATA banner, mint page background. Tab once: "Skip to content" appears.
+Run: `pnpm dev`, open `http://localhost:3000`.
+Expected: white header with the CentMe wordmark image, amber-filled `TEST MODE` pill with navy text, `ภาษาไทย` button (toggles to Thai and back, survives refresh), dashed amber MOCK DATA banner, warm off-white page background, CentMe app icon in the browser tab. Tab once: "Skip to content" appears.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add app components lib/api/ApiProvider.tsx
+git add src/app src/components src/web/api/ApiProvider.tsx
 git commit -m "feat(web): CentMe shell, tokens, fonts and providers"
 ```
 
@@ -2821,23 +2900,85 @@ git commit -m "feat(web): CentMe shell, tokens, fonts and providers"
 ### Task 10: Screen 1 — Send
 
 **Files:**
-- Modify (full replace): `app/page.tsx`
-- Create: `components/send/AmountField.tsx`, `components/send/RecipientCard.tsx`, `components/send/EstimateCard.tsx`
+- Modify (full replace): `src/app/page.tsx`
+- Create: `src/web/demoScenario.ts`, `src/components/send/AmountField.tsx`, `src/components/send/RecipientCard.tsx`, `src/components/send/EstimateCard.tsx`, `src/components/send/ChecksAlert.tsx`
 
 **Interfaces:**
 - Consumes: `useApi`, `useT`, `parseUsdInput`, `estimateQuote`, `formatMinor`, `formatRate`, `FIXTURE`, `maskAccount`, `initials`, `isApiError`, `errorText`, `browserStorage`, `SummaryRow`.
-- Produces: `app/page.tsx` owns `step: 1 | 2`, `quote`, `recipient`, and `requestQuote(): Promise<boolean>`; Task 11 adds `<ReviewStep quote recipient onEdit onNewQuote quoting />`.
+- Produces: `src/app/page.tsx` owns `step: 1 | 2`, `quote`, `recipient`, `checksBlock`, and `requestQuote(): Promise<boolean>` (a checks error sets `checksBlock` and returns to step 1); Task 11 adds `<ReviewStep quote recipient onEdit onNewQuote quoting />`. `readScenario`/`writeScenario`/`readCheckScenario`/`writeCheckScenario` (used by Tasks 11 and 13).
+
+- [ ] **Step 0: Demo scenario storage and checks alert**
+
+`src/web/demoScenario.ts` (transfer scenario for Task 11, checks scenario for the quote call below; both set from the presenter panel in Task 13):
+
+```ts
+import { CHECK_SCENARIOS, DEMO_SCENARIOS, type CheckScenario, type DemoScenario } from "./api/types";
+import { browserStorage, type KeyValueStore } from "./storage";
+
+const KEY = "centme:scenario";
+const CHECK_KEY = "centme:checkScenario";
+
+export function readScenario(store: KeyValueStore = browserStorage("session")): DemoScenario {
+  const v = store.getItem(KEY);
+  return (DEMO_SCENARIOS as readonly string[]).includes(v ?? "") ? (v as DemoScenario) : "HAPPY_PATH";
+}
+
+export function writeScenario(scenario: DemoScenario, store: KeyValueStore = browserStorage("session")): void {
+  store.setItem(KEY, scenario);
+}
+
+export function readCheckScenario(store: KeyValueStore = browserStorage("session")): CheckScenario {
+  const v = store.getItem(CHECK_KEY);
+  return (CHECK_SCENARIOS as readonly string[]).includes(v ?? "") ? (v as CheckScenario) : "PASS";
+}
+
+export function writeCheckScenario(scenario: CheckScenario, store: KeyValueStore = browserStorage("session")): void {
+  store.setItem(CHECK_KEY, scenario);
+}
+```
+
+`src/components/send/ChecksAlert.tsx`:
+
+```tsx
+"use client";
+
+import { ShieldAlert, ShieldQuestion } from "lucide-react";
+import { EvidenceTag } from "@/components/common/EvidenceTag";
+import { useT } from "@/web/i18n/LanguageProvider";
+import { cn } from "@/web/utils";
+
+export type ChecksBlock = "CHECKS_REJECTED" | "CHECKS_REVIEW_REQUIRED";
+
+export function ChecksAlert({ code }: { code: ChecksBlock }) {
+  const { t } = useT();
+  const rejected = code === "CHECKS_REJECTED";
+  const Icon = rejected ? ShieldAlert : ShieldQuestion;
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "mt-6 flex items-start gap-3 rounded-xl border p-4 text-sm",
+        rejected ? "border-destructive/40 text-destructive" : "border-pending/40 text-pending",
+      )}
+    >
+      <Icon className="mt-0.5 size-5 shrink-0" aria-hidden />
+      <p className="flex-1">{t(`checks.${code}` as const)}</p>
+      <EvidenceTag tag="SIMULATED" />
+    </div>
+  );
+}
+```
 
 - [ ] **Step 1: Components**
 
-`components/send/AmountField.tsx`:
+`src/components/send/AmountField.tsx`:
 
 ```tsx
 "use client";
 
 import type { Ref } from "react";
-import { useT } from "@/lib/i18n/LanguageProvider";
-import { cn } from "@/lib/utils";
+import { useT } from "@/web/i18n/LanguageProvider";
+import { cn } from "@/web/utils";
 
 type Props = {
   value: string;
@@ -2885,14 +3026,14 @@ export function AmountField({ value, onChange, onBlur, errorText, inputRef }: Pr
 }
 ```
 
-`components/send/RecipientCard.tsx`:
+`src/components/send/RecipientCard.tsx`:
 
 ```tsx
 "use client";
 
-import type { Recipient } from "@/lib/api/types";
-import { initials, maskAccount } from "@/lib/format";
-import { useT } from "@/lib/i18n/LanguageProvider";
+import type { Recipient } from "@/web/api/types";
+import { initials, maskAccount } from "@/web/format";
+import { useT } from "@/web/i18n/LanguageProvider";
 
 export function RecipientCard({ recipient, failed }: { recipient: Recipient | null; failed: boolean }) {
   const { t } = useT();
@@ -2921,14 +3062,14 @@ export function RecipientCard({ recipient, failed }: { recipient: Recipient | nu
 }
 ```
 
-`components/send/EstimateCard.tsx`:
+`src/components/send/EstimateCard.tsx`:
 
 ```tsx
 "use client";
 
 import { SummaryRow } from "@/components/common/SummaryRow";
-import { useT } from "@/lib/i18n/LanguageProvider";
-import { FIXTURE, formatMinor, formatRate, type Estimate } from "@/lib/money";
+import { useT } from "@/web/i18n/LanguageProvider";
+import { FIXTURE, formatMinor, formatRate, type Estimate } from "@/web/money";
 
 export function EstimateCard({ estimate }: { estimate: Estimate | null }) {
   const { t, lang } = useT();
@@ -2953,7 +3094,7 @@ export function EstimateCard({ estimate }: { estimate: Estimate | null }) {
 
 - [ ] **Step 2: Page**
 
-`app/page.tsx`:
+`src/app/page.tsx`:
 
 ```tsx
 "use client";
@@ -2963,15 +3104,17 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { AmountField } from "@/components/send/AmountField";
 import { EstimateCard } from "@/components/send/EstimateCard";
+import { ChecksAlert, type ChecksBlock } from "@/components/send/ChecksAlert";
 import { RecipientCard } from "@/components/send/RecipientCard";
 import { Button } from "@/components/ui/button";
-import { useApi } from "@/lib/api/ApiProvider";
-import { isApiError } from "@/lib/api/errors";
-import type { Quote, Recipient } from "@/lib/api/types";
-import { errorText } from "@/lib/i18n/errorText";
-import { useT } from "@/lib/i18n/LanguageProvider";
-import { estimateQuote, parseUsdInput, type ParseError } from "@/lib/money";
-import { browserStorage } from "@/lib/storage";
+import { useApi } from "@/web/api/ApiProvider";
+import { isApiError } from "@/web/api/errors";
+import type { Quote, Recipient } from "@/web/api/types";
+import { readCheckScenario } from "@/web/demoScenario";
+import { errorText } from "@/web/i18n/errorText";
+import { useT } from "@/web/i18n/LanguageProvider";
+import { estimateQuote, parseUsdInput, type ParseError } from "@/web/money";
+import { browserStorage } from "@/web/storage";
 
 const AMOUNT_KEY = "centme:amount";
 
@@ -2986,6 +3129,7 @@ export default function SendPage() {
   const [recipientFailed, setRecipientFailed] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoting, setQuoting] = useState(false);
+  const [checksBlock, setChecksBlock] = useState<ChecksBlock | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -3007,6 +3151,7 @@ export default function SendPage() {
     setAmount(value);
     setAmountError(null);
     setServerError(null);
+    setChecksBlock(null);
     browserStorage("session").setItem(AMOUNT_KEY, value);
   }
 
@@ -3023,11 +3168,24 @@ export default function SendPage() {
     }
     if (!recipient) return false;
     setQuoting(true);
+    setChecksBlock(null);
     try {
-      setQuote(await api.createQuote({ recipientId: recipient.id, sourceDebitMinor: p.minor }));
+      const check = readCheckScenario();
+      setQuote(
+        await api.createQuote({
+          recipientId: recipient.id,
+          sourceDebitMinor: p.minor,
+          ...(check === "PASS" ? {} : { demoCheckScenario: check }),
+        }),
+      );
       return true;
     } catch (e) {
-      if (isApiError(e, "INVALID_INPUT")) {
+      if (isApiError(e, "CHECKS_REJECTED") || isApiError(e, "CHECKS_REVIEW_REQUIRED")) {
+        // No quote exists. Drop any old one and show the alert on step 1 (also when called from "Get new quote").
+        setQuote(null);
+        setChecksBlock(e.code as ChecksBlock);
+        setStep(1);
+      } else if (isApiError(e, "INVALID_INPUT")) {
         setServerError(e.fieldErrors.sourceDebitMinor ?? e.message);
         inputRef.current?.focus();
       } else {
@@ -3057,6 +3215,7 @@ export default function SendPage() {
           <AmountField value={amount} onChange={onAmountChange} onBlur={onAmountBlur} errorText={fieldError} inputRef={inputRef} />
           <RecipientCard recipient={recipient} failed={recipientFailed} />
         </div>
+        {checksBlock && <ChecksAlert code={checksBlock} />}
         <Button type="submit" className="mt-8 h-12 w-full text-base font-semibold" disabled={quoting || !recipient}>
           {quoting && <Loader2 className="animate-spin" aria-hidden />}
           {t("send.continue")}
@@ -3070,21 +3229,22 @@ export default function SendPage() {
 
 - [ ] **Step 3: Verify**
 
-Run: `npm run build`
+Run: `pnpm build`
 Expected: succeeds.
 
-Run: `npm run dev`, open `http://localhost:3000`.
+Run: `pnpm dev`, open `http://localhost:3000`.
 Expected:
 - $10.00 prefilled; estimate card shows ฿343.00, fee $0.20, "1 USD = 35 THB", "Demo timing only".
 - Type `50` → estimate ฿1,715.00 instantly. Type `100.01`, tab away → "The maximum is $100.00 in test mode." under the field, red border.
 - Recipient card: "DR · Demo Recipient · Demo Thai Bank · ••0001".
-- Enter or **Continue** with $10 → placeholder "Review step".
+- Enter or **Get final quote** with $10 → placeholder "Review step".
+- In DevTools run `sessionStorage.setItem("centme:checkScenario", "REJECT")`, press **Get final quote** → red alert "Simulated checks rejected this transfer…", stays on step 1. `"REVIEW"` → amber alert. Typing in the amount clears it. `sessionStorage.removeItem("centme:checkScenario")` → normal quote.
 - Toggle Thai: every string changes; nothing overflows at 375px width (DevTools device toolbar).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add app/page.tsx components/send
+git add src/web/demoScenario.ts src/app/page.tsx src/components/send
 git commit -m "feat(web): send screen with live estimate"
 ```
 
@@ -3093,43 +3253,28 @@ git commit -m "feat(web): send screen with live estimate"
 ### Task 11: Screen 2 — Review & pay with bank sheet
 
 **Files:**
-- Create: `lib/demoScenario.ts`, `components/review/ExpiryCountdown.tsx`, `components/review/BankSheet.tsx`, `components/review/ReviewStep.tsx`
-- Modify: `app/page.tsx` (render `ReviewStep` in step 2)
+- Create: `src/components/review/ExpiryCountdown.tsx`, `src/components/review/BankSheet.tsx`, `src/components/review/ReviewStep.tsx`
+- Modify: `src/app/page.tsx` (render `ReviewStep` in step 2)
 
 **Interfaces:**
 - Consumes: `getOrCreateKey`, `useApi`, `isApiError`, `errorText`, `formatMinor`, `formatRate`, `maskAccount`, `formatCountdown`, `EvidenceTag`, `SummaryRow`, shadcn `Dialog*`.
-- Produces: `readScenario(store?): DemoScenario`, `writeScenario(s, store?)` (used by Task 13); navigation to `/transfers/<id>?fund=1` after transfer creation.
+- Consumes from Task 10: `readScenario` (`src/web/demoScenario.ts`).
+- Produces: navigation to `/transfers/<id>?fund=1` after transfer creation; a "Checks · Passed · SIMULATED" row when `quote.checks` is present.
 
 - [ ] **Step 1: Scenario storage**
 
-`lib/demoScenario.ts`:
-
-```ts
-import { DEMO_SCENARIOS, type DemoScenario } from "./api/types";
-import { browserStorage, type KeyValueStore } from "./storage";
-
-const KEY = "centme:scenario";
-
-export function readScenario(store: KeyValueStore = browserStorage("session")): DemoScenario {
-  const v = store.getItem(KEY);
-  return (DEMO_SCENARIOS as readonly string[]).includes(v ?? "") ? (v as DemoScenario) : "HAPPY_PATH";
-}
-
-export function writeScenario(scenario: DemoScenario, store: KeyValueStore = browserStorage("session")): void {
-  store.setItem(KEY, scenario);
-}
-```
+Already created in Task 10 Step 0 (`src/web/demoScenario.ts`). Nothing to do here.
 
 - [ ] **Step 2: Countdown and bank sheet**
 
-`components/review/ExpiryCountdown.tsx`:
+`src/components/review/ExpiryCountdown.tsx`:
 
 ```tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { formatCountdown } from "@/lib/format";
-import { useT } from "@/lib/i18n/LanguageProvider";
+import { formatCountdown } from "@/web/format";
+import { useT } from "@/web/i18n/LanguageProvider";
 
 export function ExpiryCountdown({ expiresAt, expired, onExpire }: { expiresAt: string; expired: boolean; onExpire(): void }) {
   const { t } = useT();
@@ -3166,7 +3311,7 @@ export function ExpiryCountdown({ expiresAt, expired, onExpire }: { expiresAt: s
 }
 ```
 
-`components/review/BankSheet.tsx` (if your generated `dialog.tsx` has no `showCloseButton` prop, delete that one prop):
+`src/components/review/BankSheet.tsx` (if your generated `dialog.tsx` has no `showCloseButton` prop, delete that one prop):
 
 ```tsx
 "use client";
@@ -3175,7 +3320,7 @@ import { Landmark, Loader2 } from "lucide-react";
 import { EvidenceTag } from "@/components/common/EvidenceTag";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useT } from "@/lib/i18n/LanguageProvider";
+import { useT } from "@/web/i18n/LanguageProvider";
 
 type Props = {
   open: boolean;
@@ -3222,7 +3367,7 @@ export function BankSheet({ open, onOpenChange, amountText, paying, onConfirm }:
 
 - [ ] **Step 3: Review step**
 
-`components/review/ReviewStep.tsx`:
+`src/components/review/ReviewStep.tsx`:
 
 ```tsx
 "use client";
@@ -3231,18 +3376,19 @@ import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { EvidenceTag } from "@/components/common/EvidenceTag";
 import { SummaryRow } from "@/components/common/SummaryRow";
 import { Button } from "@/components/ui/button";
-import { useApi } from "@/lib/api/ApiProvider";
-import { isApiError } from "@/lib/api/errors";
-import type { Quote, Recipient } from "@/lib/api/types";
-import { readScenario } from "@/lib/demoScenario";
-import { maskAccount } from "@/lib/format";
-import { getOrCreateKey } from "@/lib/idempotency";
-import { errorText } from "@/lib/i18n/errorText";
-import { useT } from "@/lib/i18n/LanguageProvider";
-import { formatMinor, formatRate } from "@/lib/money";
-import { cn } from "@/lib/utils";
+import { useApi } from "@/web/api/ApiProvider";
+import { isApiError } from "@/web/api/errors";
+import type { Quote, Recipient } from "@/web/api/types";
+import { readScenario } from "@/web/demoScenario";
+import { maskAccount } from "@/web/format";
+import { getOrCreateKey } from "@/web/idempotency";
+import { errorText } from "@/web/i18n/errorText";
+import { useT } from "@/web/i18n/LanguageProvider";
+import { formatMinor, formatRate } from "@/web/money";
+import { cn } from "@/web/utils";
 import { BankSheet } from "./BankSheet";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 
@@ -3264,7 +3410,7 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
   const payingRef = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
-  // A new quote remounts this component (key={quote.id} in app/page.tsx), so `expired` starts fresh.
+  // A new quote remounts this component (key={quote.id} in src/app/page.tsx), so `expired` starts fresh.
   useEffect(() => {
     headingRef.current?.focus();
   }, []);
@@ -3320,6 +3466,17 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
             label={t("send.recipientLabel")}
             value={`${recipient.name} · ${recipient.bankLabel} ${maskAccount(recipient.accountDisplay)}`}
           />
+          {quote.checks && (
+            <SummaryRow
+              label={t("review.checks")}
+              value={
+                <span className="inline-flex items-center gap-2">
+                  {t("review.checksPassed")}
+                  <EvidenceTag tag="SIMULATED" />
+                </span>
+              }
+            />
+          )}
           <SummaryRow label={t("send.arrival")} value={t("send.timing")} />
         </dl>
       </div>
@@ -3356,7 +3513,7 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
 
 - [ ] **Step 4: Wire into the page**
 
-In `app/page.tsx`, add the import:
+In `src/app/page.tsx`, add the import:
 
 ```tsx
 import { ReviewStep } from "@/components/review/ReviewStep";
@@ -3392,20 +3549,20 @@ Note: `key={quote.id}` remounts the step for a fresh quote, so focus, countdown 
 
 - [ ] **Step 5: Verify**
 
-Run: `npm run build`
+Run: `pnpm build`
 Expected: succeeds (the `/transfers/[id]` route does not exist yet; navigation 404s until Task 12).
 
-Run: `npm run dev` and walk through:
-- Continue → "Check before you send", countdown "Expires in 5:00" ticking, ฿343.00, rows, **Pay $10.00**, Edit.
+Run: `pnpm dev` and walk through:
+- Get final quote → "Check before you send", countdown "Expires in 5:00" ticking, ฿343.00, rows including "Checks · Passed · SIMULATED", **Pay $10.00**, Edit.
 - Pay → sheet "Demo Checking ••4821", SIMULATED tag, $10.00, Confirm focused. Esc closes it.
 - Confirm → URL becomes `/transfers/mock_transfer_N?fund=1` (404 page for now). Browser Back does not return to the sheet.
 - DevTools console: `sessionStorage` has `centme:key:transfer:mock_quote_N`.
-- Expiry: in DevTools console run `localStorage.clear(); sessionStorage.clear()`, reload, Continue, wait 5 minutes (or temporarily set `QUOTE_TTL_MS` to 10_000 in `lib/api/mock.ts` and revert after) → "Quote expired", card dims, **Get new quote** returns a fresh 5:00.
+- Expiry: in DevTools console run `localStorage.clear(); sessionStorage.clear()`, reload, Get final quote, wait 5 minutes (or temporarily set `QUOTE_TTL_MS` to 10_000 in `src/web/api/mock.ts` and revert after) → "Quote expired", card dims, **Get new quote** returns a fresh 5:00.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lib/demoScenario.ts components/review app/page.tsx
+git add src/components/review src/app/page.tsx
 git commit -m "feat(web): review and simulated bank payment step"
 ```
 
@@ -3414,7 +3571,7 @@ git commit -m "feat(web): review and simulated bank payment step"
 ### Task 12: Screen 3 — Track → Receipt
 
 **Files:**
-- Create: `app/transfers/[id]/page.tsx`, `components/track/TrackView.tsx`, `components/track/Timeline.tsx`, `components/track/NotifiedChip.tsx`, `components/track/Details.tsx`, `components/track/Receipt.tsx`
+- Create: `src/app/transfers/[id]/page.tsx`, `src/components/track/TrackView.tsx`, `src/components/track/Timeline.tsx`, `src/components/track/NotifiedChip.tsx`, `src/components/track/Details.tsx`, `src/components/track/Receipt.tsx`
 
 **Interfaces:**
 - Consumes: `useTransfer`, `toView`, `stepTime`, `TransferView`, `StepState`, `getOrCreateKey`, `isApiError`, `NetworkError`, `errorText`, `formatMinor`, `formatRate`, `formatTokenUnits`, `formatDateTime`, `shortHash`, `maskAccount`, `EvidenceTag`, `SummaryRow`.
@@ -3422,7 +3579,7 @@ git commit -m "feat(web): review and simulated bank payment step"
 
 - [ ] **Step 1: Route**
 
-`app/transfers/[id]/page.tsx`:
+`src/app/transfers/[id]/page.tsx`:
 
 ```tsx
 import { TrackView } from "@/components/track/TrackView";
@@ -3435,18 +3592,18 @@ export default async function TransferPage({ params }: { params: Promise<{ id: s
 
 - [ ] **Step 2: Timeline**
 
-`components/track/Timeline.tsx`:
+`src/components/track/Timeline.tsx`:
 
 ```tsx
 "use client";
 
 import { Check, ExternalLink, Loader2, Pause, X } from "lucide-react";
 import { EvidenceTag } from "@/components/common/EvidenceTag";
-import type { TransferSnapshot } from "@/lib/api/types";
-import { formatDateTime, shortHash } from "@/lib/format";
-import { useT } from "@/lib/i18n/LanguageProvider";
-import { stepTime, type StepState, type TransferView } from "@/lib/status";
-import { cn } from "@/lib/utils";
+import type { TransferSnapshot } from "@/web/api/types";
+import { formatDateTime, shortHash } from "@/web/format";
+import { useT } from "@/web/i18n/LanguageProvider";
+import { stepTime, type StepState, type TransferView } from "@/web/status";
+import { cn } from "@/web/utils";
 
 function StepIcon({ state }: { state: StepState }) {
   const base = "relative z-10 grid size-10 shrink-0 place-items-center rounded-full border-2";
@@ -3525,13 +3682,13 @@ export function Timeline({ view, snapshot, className }: { view: TransferView; sn
 
 - [ ] **Step 3: Chip, details, receipt**
 
-`components/track/NotifiedChip.tsx`:
+`src/components/track/NotifiedChip.tsx`:
 
 ```tsx
 "use client";
 
 import { Smartphone } from "lucide-react";
-import { useT } from "@/lib/i18n/LanguageProvider";
+import { useT } from "@/web/i18n/LanguageProvider";
 
 export function NotifiedChip() {
   const { t } = useT();
@@ -3544,17 +3701,17 @@ export function NotifiedChip() {
 }
 ```
 
-`components/track/Details.tsx`:
+`src/components/track/Details.tsx`:
 
 ```tsx
 "use client";
 
 import { ChevronDown } from "lucide-react";
 import { SummaryRow } from "@/components/common/SummaryRow";
-import type { TransferSnapshot } from "@/lib/api/types";
-import { formatDateTime } from "@/lib/format";
-import { useT } from "@/lib/i18n/LanguageProvider";
-import { cn } from "@/lib/utils";
+import type { TransferSnapshot } from "@/web/api/types";
+import { formatDateTime } from "@/web/format";
+import { useT } from "@/web/i18n/LanguageProvider";
+import { cn } from "@/web/utils";
 
 export function Details({ snapshot: s, className }: { snapshot: TransferSnapshot; className?: string }) {
   const { t, lang } = useT();
@@ -3582,7 +3739,7 @@ export function Details({ snapshot: s, className }: { snapshot: TransferSnapshot
 }
 ```
 
-`components/track/Receipt.tsx`:
+`src/components/track/Receipt.tsx`:
 
 ```tsx
 "use client";
@@ -3591,10 +3748,10 @@ import { Check, ExternalLink, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { SummaryRow } from "@/components/common/SummaryRow";
 import { Button } from "@/components/ui/button";
-import type { TransferSnapshot } from "@/lib/api/types";
-import { formatDateTime, maskAccount, shortHash } from "@/lib/format";
-import { useT } from "@/lib/i18n/LanguageProvider";
-import { formatMinor, formatRate, formatTokenUnits } from "@/lib/money";
+import type { TransferSnapshot } from "@/web/api/types";
+import { formatDateTime, maskAccount, shortHash } from "@/web/format";
+import { useT } from "@/web/i18n/LanguageProvider";
+import { formatMinor, formatRate, formatTokenUnits } from "@/web/money";
 
 export function Receipt({ snapshot: s, onSendAnother }: { snapshot: TransferSnapshot; onSendAnother(): void }) {
   const { t, lang } = useT();
@@ -3673,7 +3830,7 @@ export function Receipt({ snapshot: s, onSendAnother }: { snapshot: TransferSnap
 
 - [ ] **Step 4: Track view**
 
-`components/track/TrackView.tsx`:
+`src/components/track/TrackView.tsx`:
 
 ```tsx
 "use client";
@@ -3684,14 +3841,14 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useApi } from "@/lib/api/ApiProvider";
-import { isApiError, NetworkError } from "@/lib/api/errors";
-import { getOrCreateKey } from "@/lib/idempotency";
-import { errorText } from "@/lib/i18n/errorText";
-import { useT } from "@/lib/i18n/LanguageProvider";
-import { formatMinor } from "@/lib/money";
-import { toView, type PrimaryAction } from "@/lib/status";
-import { useTransfer } from "@/lib/useTransfer";
+import { useApi } from "@/web/api/ApiProvider";
+import { isApiError, NetworkError } from "@/web/api/errors";
+import { getOrCreateKey } from "@/web/idempotency";
+import { errorText } from "@/web/i18n/errorText";
+import { useT } from "@/web/i18n/LanguageProvider";
+import { formatMinor } from "@/web/money";
+import { toView, type PrimaryAction } from "@/web/status";
+import { useTransfer } from "@/web/useTransfer";
 import { Details } from "./Details";
 import { NotifiedChip } from "./NotifiedChip";
 import { Receipt } from "./Receipt";
@@ -3821,10 +3978,10 @@ export function TrackView({ id }: { id: string }) {
 
 - [ ] **Step 5: Verify**
 
-Run: `npm test && npm run build`
+Run: `pnpm vitest run tests/web && pnpm lint && pnpm typecheck && pnpm build`
 Expected: PASS; build succeeds.
 
-Run: `npm run dev`, do a full $10 happy path in mock mode.
+Run: `pnpm dev`, do a full $10 happy path in mock mode.
 Expected:
 - After Confirm: lands on the track page, the `?fund=1` disappears from the URL, the timeline walks steps 1→4 about one step per 2–3s, the settlement step shows `mock-0x…` with **no** Snowtrace link and a `MOCK` tag, label "Settlement (mock, no blockchain)".
 - Completion: headline "Transfer complete", receipt card with all rows, "Demo completed — THB payout simulated.", and "Recipient notified" chip once `.env.local` has a topic and the ntfy app on the iPhone is subscribed to it (phone shows "[MOCK] Demo Recipient received ฿343.00 · THB payout simulated.").
@@ -3834,7 +3991,7 @@ Expected:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/transfers components/track
+git add src/app/transfers src/components/track
 git commit -m "feat(web): live tracking timeline and receipt"
 ```
 
@@ -3843,15 +4000,15 @@ git commit -m "feat(web): live tracking timeline and receipt"
 ### Task 13: Hidden presenter panel
 
 **Files:**
-- Create: `components/demo/PresenterPanel.tsx`
-- Modify: `app/layout.tsx` (render the panel inside `<Providers>`)
+- Create: `src/components/demo/PresenterPanel.tsx`
+- Modify: `src/app/layout.tsx` (render the panel inside `<Providers>`)
 
 **Interfaces:**
-- Consumes: `useApi().modes`, `useApi().resetMock`, `readScenario`, `writeScenario`, `DEMO_SCENARIOS`, `ENDPOINT_GROUPS`.
+- Consumes: `useApi().modes`, `useApi().resetMock`, `readScenario`, `writeScenario`, `readCheckScenario`, `writeCheckScenario`, `DEMO_SCENARIOS`, `CHECK_SCENARIOS`, `ENDPOINT_GROUPS`.
 
 - [ ] **Step 1: Panel**
 
-`components/demo/PresenterPanel.tsx`:
+`src/components/demo/PresenterPanel.tsx`:
 
 ```tsx
 "use client";
@@ -3860,12 +4017,12 @@ import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useApi } from "@/lib/api/ApiProvider";
-import { ENDPOINT_GROUPS } from "@/lib/api/index";
-import { DEMO_SCENARIOS, type DemoScenario } from "@/lib/api/types";
-import { readScenario, writeScenario } from "@/lib/demoScenario";
-import { useT } from "@/lib/i18n/LanguageProvider";
-import { cn } from "@/lib/utils";
+import { useApi } from "@/web/api/ApiProvider";
+import { ENDPOINT_GROUPS } from "@/web/api/index";
+import { CHECK_SCENARIOS, DEMO_SCENARIOS, type CheckScenario, type DemoScenario } from "@/web/api/types";
+import { readCheckScenario, readScenario, writeCheckScenario, writeScenario } from "@/web/demoScenario";
+import { useT } from "@/web/i18n/LanguageProvider";
+import { cn } from "@/web/utils";
 
 export function PresenterPanel() {
   const { modes, resetMock } = useApi();
@@ -3873,9 +4030,11 @@ export function PresenterPanel() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [scenario, setScenario] = useState<DemoScenario>("HAPPY_PATH");
+  const [checkScenario, setCheckScenario] = useState<CheckScenario>("PASS");
 
   useEffect(() => {
     setScenario(readScenario());
+    setCheckScenario(readCheckScenario());
     if (new URLSearchParams(window.location.search).get("demo") === "1") setOpen(true);
   }, []);
 
@@ -3923,6 +4082,28 @@ export function PresenterPanel() {
         </div>
       </fieldset>
 
+      <fieldset className="mt-3">
+        <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("demo.checks")}</legend>
+        <div className="mt-2 flex gap-1">
+          {CHECK_SCENARIOS.map((s) => (
+            <label key={s} className="flex flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
+              <input
+                type="radio"
+                name="checkScenario"
+                value={s}
+                checked={checkScenario === s}
+                onChange={() => {
+                  setCheckScenario(s);
+                  writeCheckScenario(s);
+                }}
+                className="accent-[var(--brand)]"
+              />
+              {t(`demo.check.${s}` as const)}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <div className="mt-4">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("demo.endpoints")}</p>
         <ul className="mt-2 space-y-1 text-sm">
@@ -3960,7 +4141,7 @@ export function PresenterPanel() {
 
 - [ ] **Step 2: Mount in layout**
 
-In `app/layout.tsx` add the import:
+In `src/app/layout.tsx` add the import:
 
 ```tsx
 import { PresenterPanel } from "@/components/demo/PresenterPanel";
@@ -3987,17 +4168,18 @@ to
 
 - [ ] **Step 3: Verify**
 
-Run: `npm run build`, then `npm run dev`.
+Run: `pnpm build`, then `pnpm dev`.
 Expected:
 - Press `D` (focus not in the amount field) → panel bottom-right; `D` again hides it. `?demo=1` opens it on load.
 - Choose **Funding declined**, run a transfer → step 1 turns red, "Payment declined. No money moved.", **Start over**; no hash anywhere.
 - Choose **Payout failed** → step 4 red, "Bank payout failed. Your USDC transfer is safe.", **Retry payout** → completes; Details shows the same tx hash as before the retry and a new payout reference.
+- Checks **Reject** → Get final quote shows the red checks alert; **Review** → amber; **Pass** → normal review with "Checks · Passed".
 - All four endpoint badges read MOCK. **Reset mock data** returns to `/` and old transfer URLs show "not found".
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add components/demo app/layout.tsx
+git add src/components/demo src/app/layout.tsx
 git commit -m "feat(web): hidden presenter panel for demo scenarios"
 ```
 
@@ -4006,15 +4188,15 @@ git commit -m "feat(web): hidden presenter panel for demo scenarios"
 ### Task 14: Motion — the wow sequence
 
 **Files:**
-- Modify: `app/globals.css` (append keyframes), `lib/money.ts` (add `interpolateMinor`), `lib/money.test.ts`, `components/track/Timeline.tsx` (token dot), `components/track/Receipt.tsx` (count-up)
-- Create: `lib/useCountUp.ts`
+- Modify: `src/app/globals.css` (append keyframes), `src/web/money.ts` (add `interpolateMinor`), `tests/web/money.test.ts`, `src/components/track/Timeline.tsx` (token dot), `src/components/track/Receipt.tsx` (count-up)
+- Create: `src/web/useCountUp.ts`
 
 **Interfaces:**
 - Produces: `interpolateMinor(target: string, progress: number): string`, `useCountUp(target: string, durationMs?: number): string`.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `lib/money.test.ts` (and add `interpolateMinor` to its import list from `./money`):
+Append to `tests/web/money.test.ts` (and add `interpolateMinor` to its import list from `@/web/money`):
 
 ```ts
 describe("interpolateMinor", () => {
@@ -4030,12 +4212,12 @@ describe("interpolateMinor", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run lib/money.test.ts`
+Run: `pnpm vitest run tests/web/money.test.ts`
 Expected: FAIL, `interpolateMinor` is not exported.
 
 - [ ] **Step 3: Implement**
 
-Append to `lib/money.ts`:
+Append to `src/web/money.ts`:
 
 ```ts
 /** Animation helper: integer-only value at a progress in [0, 1]. */
@@ -4045,7 +4227,7 @@ export function interpolateMinor(target: string, progress: number): string {
 }
 ```
 
-`lib/useCountUp.ts`:
+`src/web/useCountUp.ts`:
 
 ```ts
 "use client";
@@ -4076,7 +4258,7 @@ export function useCountUp(target: string, durationMs = 700): string {
 }
 ```
 
-Append to `app/globals.css`:
+Append to `src/app/globals.css`:
 
 ```css
 @keyframes centme-draw {
@@ -4104,7 +4286,7 @@ Append to `app/globals.css`:
 }
 ```
 
-In `components/track/Timeline.tsx`, inside the connector `<span aria-hidden className="connector …">`, after the fill `<span … />`, add the travelling token shown while settlement is in progress:
+In `src/components/track/Timeline.tsx`, inside the connector `<span aria-hidden className="connector …">`, after the fill `<span … />`, add the travelling token shown while settlement is in progress:
 
 ```tsx
                 {step.id === "settlement" && step.state === "active" && (
@@ -4116,7 +4298,7 @@ In `components/track/Timeline.tsx`, inside the connector `<span aria-hidden clas
                 )}
 ```
 
-In `components/track/Receipt.tsx`, add `import { useCountUp } from "@/lib/useCountUp";` and replace
+In `src/components/track/Receipt.tsx`, add `import { useCountUp } from "@/web/useCountUp";` and replace
 
 ```tsx
   if (!s.receipt) return null;
@@ -4136,19 +4318,19 @@ with
 
 - [ ] **Step 4: Verify**
 
-Run: `npm test && npm run build`
+Run: `pnpm vitest run tests/web && pnpm lint && pnpm typecheck && pnpm build`
 Expected: PASS; build succeeds.
 
-Run: `npm run dev`, full happy path:
+Run: `pnpm dev`, full happy path:
 - Each completed step's check draws in; the green line grows down to the next step.
-- While settlement is in progress a lime dot travels down the line toward "Delivered to Thai bank".
+- While settlement is in progress a green dot travels down the line toward "Delivered to Thai bank".
 - On completion the receipt slides up and "They received" counts from ฿0.00 to ฿343.00 (whole satang only), the chip pops, the phone buzzes.
 - DevTools → Rendering → "Emulate prefers-reduced-motion: reduce": everything appears instantly, the amount shows ฿343.00 at once.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/globals.css lib/money.ts lib/money.test.ts lib/useCountUp.ts components/track
+git add src/app/globals.css src/web/money.ts tests/web/money.test.ts src/web/useCountUp.ts src/components/track
 git commit -m "feat(web): timeline motion, token travel and receipt count-up"
 ```
 
@@ -4157,11 +4339,11 @@ git commit -m "feat(web): timeline motion, token travel and receipt count-up"
 ### Task 15: Walkthrough checklist, real-endpoint switch-over and design polish
 
 **Files:**
-- Create: `../docs/walkthrough.md` (repo `docs/`, not the app)
+- Create: `D:\U-Hackathon\docs\walkthrough.md` (the docs repo, not the app repo)
 
 - [ ] **Step 1: Write the walkthrough**
 
-`docs/walkthrough.md` (repo root):
+`docs/walkthrough.md` (in `D:\U-Hackathon`):
 
 ```markdown
 # CentMe browser walkthrough
@@ -4176,18 +4358,19 @@ Run each row in mock mode first, then with `NEXT_PUBLIC_REAL_ENDPOINTS=all`. Mar
 | 4 | Refresh mid-transfer | Resumes on same step; funding reference unchanged | | |
 | 5 | Double-click Confirm payment | One transfer only (Details → one transfer ID; real: one DB row) | | |
 | 6 | Quote expiry on review | "Quote expired", card dims, Get new quote gives a fresh 5:00 | | |
-| 7 | Invalid amounts: 0.50, 100.01, 1e2, -5, 10.505 | Inline message under field, Continue blocked | | |
+| 7 | Invalid amounts: 0.50, 100.01, 1e2, -5, 10.505 | Inline message under field, Get final quote blocked | | |
 | 8 | TH toggle on every screen | No English left except product/tech names; no overflow at 375px | | |
 | 9 | Keyboard only | Tab order logical; Enter submits; Esc closes sheet; focus visible everywhere | | |
 | 10 | Reduced motion | No animation; values appear immediately | | |
 | 11 | Incognito: open another session's receipt URL | "We couldn't find this transfer." (real mode) | n/a | |
 | 12 | iPhone ntfy push on completion | Banner within a few seconds; text honest about simulation | | |
+| 14 | Checks scenario Reject / Review (panel) | Red / amber alert on step 1, no review screen, no quote; Pass → "Checks · Passed · SIMULATED" on review | | |
 | 13 | Real settlement evidence | TESTNET tag, Snowtrace link opens the real tx, verified time shown | n/a | |
 ```
 
 - [ ] **Step 2: Run the walkthrough in mock mode**
 
-Run: `npm run dev` and execute rows 1–10 and 12. Record results in the table. Fix any failure in the owning task's files and re-run `npm test`.
+Run: `pnpm dev` and execute rows 1–10 and 12. Record results in the table. Fix any failure in the owning task's files and re-run `pnpm vitest run tests/web`.
 
 - [ ] **Step 3: Switch endpoint groups as backend owners land them**
 
@@ -4198,7 +4381,7 @@ When person 2's session, recipients and quotes routes are merged:
 NEXT_PUBLIC_REAL_ENDPOINTS=session,recipients,quotes
 ```
 
-Restart `npm run dev`, run rows 1, 6, 7. Watch for red "contract mismatch" toasts; report the named field to the endpoint owner rather than changing the frontend schema.
+Restart `pnpm dev`, run rows 1, 6, 7, 14. Also confirm the browser estimate on step 1 equals the real quote on step 2 for $1.00, $10.00, $33.33 and $100.00; any difference goes to person 2 (shared fixture formula), not a frontend patch. Watch for red "contract mismatch" toasts; report the named field to the endpoint owner rather than changing the frontend schema.
 
 When person 3's transfer routes are merged (person 4's settlement fills `settlement.*` through `advance`):
 
@@ -4206,13 +4389,13 @@ When person 3's transfer routes are merged (person 4's settlement fills `settlem
 NEXT_PUBLIC_REAL_ENDPOINTS=all
 ```
 
-Run every row including 11 and 13. Confirm the Snowtrace link opens the actual transaction. If `notification` is absent from the real snapshot, the chip stays hidden; ask person 3 for the field and server-side ntfy push (spec section 6).
+Run every row including 11 and 13. Confirm the Snowtrace link opens the actual transaction. The real backend sends the push itself when the server `NTFY_TOPIC` is set; the chip shows only on `notification.status === "SENT"` (spec section 6).
 
 Set the same variable in Vercel project settings for the deployed demo.
 
 - [ ] **Step 4: Design QA**
 
-Invoke the `impeccable` skill with `audit` on the three screens (send, review + sheet, track + receipt), fix CRITICAL/HIGH findings, then run `impeccable` `polish`. Re-run `npm test && npm run build` after changes.
+Invoke the `impeccable` skill with `audit` on the three screens (send, review + sheet, track + receipt), fix CRITICAL/HIGH findings, then run `impeccable` `polish`. Re-run `pnpm vitest run tests/web && pnpm lint && pnpm typecheck && pnpm build` after changes.
 
 - [ ] **Step 5: Backup recording**
 

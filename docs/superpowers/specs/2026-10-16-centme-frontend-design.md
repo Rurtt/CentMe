@@ -4,6 +4,8 @@ Date: 2026-10-16, Asia/Bangkok. Owner: person 1 (frontend). Status: approved; no
 
 **Revised 2026-10-16 after backend v1** (person 3, `4rtem1sss/U-hackathon_backend`, branch `part3/backend-core`): frontend now lives inside the backend repo (section 7), notification shape follows the backend (section 6), real-endpoint switch order fixed (section 5), receipt shows the server summary (section 2). Visual design unchanged.
 
+**Revised 2026-10-16 for person 2's estimate + simulated-checks draft** (`estimate-contract.md`, extends API contract v1): screen 1 is the estimate and its button reads **Get final quote**; `POST /api/quotes` now runs simulated checks and can return `422 CHECKS_REJECTED` / `422 CHECKS_REVIEW_REQUIRED`; a passing quote carries `checks`; the presenter panel picks `demoCheckScenario`. The frontend does not call `POST /api/estimates` (sections 2 and 5).
+
 Scope: send, quote, tracking, receipt and browser walkthrough for the USD-to-THB demo. Backend contract: [API contract](../../api-contract.md). Demo scope: [current scope](2026-10-15-p2p-sandbox-scope-and-next-steps.md). This spec does not change backend ownership.
 
 | Person | Owns |
@@ -36,15 +38,19 @@ CentMe wordmark image (`components/brand/Logo.tsx` renders `public/brand/centme-
 
 - Left: "You send" USD input, prefilled `10.00`. Validation on blur and on Continue: USD 1.00–100.00, at most two decimals; friendly inline message below the field.
 - Left: recipient card, preselected (only one synthetic recipient): "Demo Recipient · Demo Thai Bank · TEST ACCOUNT 0001".
-- Right: live summary card labelled **Estimate**: "They receive ฿343.00", fee, rate "1 USD = 35 THB", "Demo timing only". Computed in the browser using the contract's fixture formula (section 5), so typing never hits the server.
-- One primary button: **Continue**. It creates the real quote (`POST /api/quotes`) and moves to step 2.
+- Right: live summary card labelled **Estimate**: "They receive ฿343.00", fee, rate "1 USD = 35 THB", "Demo timing only". Computed in the browser using the contract's fixture formula (section 5), so typing never hits the server. Person 2's `POST /api/estimates` returns the same numbers, but the UI does not call it; the final quote is the only number the user accepts.
+- One primary button: **Get final quote**. It creates the real quote (`POST /api/quotes`, which runs the simulated checks) and moves to step 2.
+- Checks blocked: if the quote call returns `CHECKS_REJECTED` or `CHECKS_REVIEW_REQUIRED`, stay on (or return to) step 1 and show an inline alert above the button, with an icon and a `SIMULATED` tag:
+  - Rejected (red): "Simulated checks rejected this transfer. No quote was issued."
+  - Review (amber): "Held for review (simulated). No quote was issued."
+  - Fix action: the same **Get final quote** button (change the amount or the presenter scenario and try again). Editing the amount clears the alert.
 
 ### Screen 2: Review & pay (`/`, step 2)
 
-- "Check before you send" card: you send, fee, rate, they receive, recipient (masked account), quote expiry countdown chip (5:00, mirrors server `expiresAt`), `Edit` link back to step 1.
+- "Check before you send" card: you send, fee, rate, they receive, recipient (masked account), a "Checks passed" row with a `SIMULATED` tag (shown only when the quote has `checks.result === "PASS"`; hidden if the backend has not shipped `checks` yet), quote expiry countdown chip (5:00, mirrors server `expiresAt`), `Edit` link back to step 1.
 - Primary button: **Pay $10.00**. Opens the bank sheet.
 - Bank sheet (modal): "Pay from Demo Checking ••4821 · USD 10.00", `SIMULATED` pill, **Confirm payment** and Cancel. Confirm locks after one click and shows a spinner.
-- Expired quote: card greys out, countdown reads "Expired", primary button becomes **Get new quote**. Never silently re-prices.
+- Expired quote: card greys out, countdown reads "Expired", primary button becomes **Get new quote**. Never silently re-prices. A new quote runs checks again; if they block it, the page returns to step 1 with the checks alert.
 - Refresh on this step returns to step 1 with the amount kept (no GET-quote route exists; quote would expire anyway).
 
 ### Screen 3: Track → Receipt (`/transfers/[id]`)
@@ -83,12 +89,12 @@ Unknown status from the server renders the amber hold state rather than crashing
 
 ### Presenter panel (hidden)
 
-Opened with `D` key or `?demo=1`. Contains: scenario picker (`HAPPY_PATH`, `FUNDING_DECLINED`, `PAYOUT_FAILED`, stored in `sessionStorage`, sent as `demoScenario` on transfer creation), per-endpoint mock/real badges, reset mock data. Judges never see it unless opened.
+Opened with `D` key or `?demo=1`. Contains: transfer scenario picker (`HAPPY_PATH`, `FUNDING_DECLINED`, `PAYOUT_FAILED`, stored in `sessionStorage`, sent as `demoScenario` on transfer creation), checks scenario picker (`PASS`, `REJECT`, `REVIEW`, stored in `sessionStorage`, sent as `demoCheckScenario` on quote creation only when not `PASS`, so a backend without the field still accepts the default request), per-endpoint mock/real badges, reset mock data. Judges never see it unless opened.
 
 ## 3. Ease-of-use rules
 
 - One primary action per screen (green `--cta` button). Everything else visually quieter.
-- Smart defaults: amount prefilled, recipient preselected. Happy path is Continue → Pay → Confirm.
+- Smart defaults: amount prefilled, recipient preselected. Happy path is Get final quote → Pay → Confirm.
 - Money in human words first ("They receive ฿343.00"); fee and rate in one calm line.
 - Plain-language status, never raw enums. Tech details behind "Details".
 - Every error says what happened and offers one button to fix it.
@@ -138,32 +144,46 @@ Paths are relative to the backend repo root (section 7); `@/*` maps to `src/*`.
 
 ```
 src/app/
-  layout.tsx                 header, fonts, LanguageProvider (replaces backend placeholder)
-  globals.css                tokens
+  layout.tsx                 header, fonts, providers (replaces backend placeholder)
+  providers.tsx              LanguageProvider + ApiProvider
+  globals.css                tokens (section 4)
+  icon.png                   app icon (favicon)
   page.tsx                   Send + Review (client state machine: step 1 | 2) (replaces placeholder)
   transfers/[id]/page.tsx    Track + Receipt
 src/components/
-  brand/Logo.tsx
-  send/       AmountField, RecipientCard, EstimateCard
-  review/     ReviewCard, ExpiryCountdown, BankSheet
-  track/      Timeline, TimelineStep, EvidenceTag, Receipt, NotifiedChip, Details
+  brand/      Logo (wordmark image)
+  shell/      Header, MockBanner
+  common/     SummaryRow, EvidenceTag
+  send/       AmountField, RecipientCard, EstimateCard, ChecksAlert
+  review/     ReviewStep, ExpiryCountdown, BankSheet
+  track/      TrackView, Timeline, Receipt, NotifiedChip, Details
   demo/       PresenterPanel
-  ui/         shadcn primitives
+  ui/         shadcn primitives (button, dialog, sonner)
 src/web/                     all frontend logic, kept apart from backend src/lib
   api/types.ts        contract types + zod schemas (snapshot, quote, recipient, session, error envelope)
+  api/fixtures.ts     contract examples for tests
   api/client.ts       ApiClient interface
   api/real.ts         fetch implementation
   api/mock.ts         contract-following fake backend
   api/index.ts        per-endpoint mock/real routing
+  api/errors.ts       ApiError, NetworkError
+  api/ApiProvider.tsx React context
   money.ts            BigInt minor-unit parse/format + fixture estimate
+  format.ts, lang.ts  display helpers
   status.ts           snapshot -> timeline view model + copy keys
+  storage.ts          safe localStorage/sessionStorage wrapper
   idempotency.ts      stable keys in sessionStorage
-  useTransferPolling.ts
-  i18n/en.ts, th.ts, useT.ts
+  demoScenario.ts     presenter scenario + check scenario storage
+  notify.ts           ntfy push for mock mode
+  transferPoller.ts, useTransfer.ts   polling + React hook
+  useCountUp.ts       receipt count-up
+  utils.ts            cn() for shadcn
+  i18n/en.ts, th.ts, translate.ts, LanguageProvider.tsx, errorText.ts
+public/brand/                logo files copied from assets/logo/
 tests/web/                   frontend unit tests (backend vitest already includes tests/**)
 ```
 
-Frontend touches only the `src/app` pages/layout/globals above, `src/components/`, `src/web/`, `tests/web/`, and the Tailwind/shadcn config files. It never touches `src/app/api/`, `src/server/`, `src/db/`, `src/domain/`, `src/lib/`, `src/settlement/` or `db/`. Frontend code may not import backend modules (they are `server-only`); it has its own contract types.
+Frontend touches only the `src/app` files above, `src/components/`, `src/web/`, `tests/web/`, `public/brand/`, and the Tailwind/shadcn config files (`postcss.config.mjs`, `components.json`). It never touches `src/app/api/`, `src/server/`, `src/db/`, `src/domain/`, `src/lib/`, `src/settlement/` or `db/`. Frontend code may not import backend modules (they are `server-only`); it has its own contract types.
 
 ### ApiClient
 
@@ -171,7 +191,7 @@ Frontend touches only the `src/app` pages/layout/globals above, `src/components/
 interface ApiClient {
   createSession(): Promise<Session>;
   getRecipients(): Promise<Recipient[]>;
-  createQuote(input: { recipientId: string; sourceDebitMinor: string }): Promise<Quote>;
+  createQuote(input: { recipientId: string; sourceDebitMinor: string; demoCheckScenario?: "REJECT" | "REVIEW" }): Promise<Quote>;
   createTransfer(input: { quoteId: string; purpose: "PERSONAL_REMITTANCE"; demoScenario: DemoScenario }, key: string): Promise<TransferSnapshot>;
   getTransfer(id: string): Promise<TransferSnapshot>;
   simulateFunding(id: string, key: string): Promise<TransferSnapshot>;
@@ -181,6 +201,8 @@ interface ApiClient {
 ```
 
 All amount fields stay integer strings end to end; only `money.ts` converts them to display text.
+
+`Quote` gains optional `checks: { mode: "SIMULATED"; result: "PASS"; reference: string }`. Optional so the schema accepts person 2's quote both before and after checks land. The frontend has no `createEstimate`; add one only if the team later needs server-side estimates.
 
 ### Room for the real APIs
 
@@ -201,7 +223,7 @@ NEXT_PUBLIC_REAL_ENDPOINTS=session,recipients,quotes   # unlisted groups stay mo
 - `real.ts` calls relative `/api/...` paths (same origin, so the backend's `Origin` check and session cookie work with no CORS or proxy). It sends `Content-Type: application/json`, `Idempotency-Key` where required, `credentials: "same-origin"`, and `{}` as the body of every body-less POST (backend bodies are strict empty objects); unwraps `{ data, meta }`; throws a typed `ApiError` with `code`, `retryable`, `fieldErrors`, `requestId`. Any 2xx is success (`advance` returns 202 while work is pending).
 - In real mode every response is validated with the zod schemas. Mismatch in development: red toast naming the endpoint and field; in production: log and continue with the hold state.
 - Mixed mode (real quote, mock transfer) works because the client caches each returned quote for the mock to resolve.
-- Error code → UI action: `INVALID_INPUT` field errors; `UNAUTHENTICATED` new session; `QUOTE_EXPIRED` "Get new quote"; `IDEMPOTENCY_CONFLICT` / `QUOTE_ALREADY_ACCEPTED` / `INVALID_STATE` re-read the transfer and render it; `RATE_LIMITED` back off (respect `Retry-After`); `DEPENDENCY_UNAVAILABLE` keep state, retry read; `INTERNAL_ERROR` show `requestId`.
+- Error code → UI action: `CHECKS_REJECTED` / `CHECKS_REVIEW_REQUIRED` (422) checks alert on step 1, no quote kept; `INVALID_INPUT` field errors; `UNAUTHENTICATED` new session; `QUOTE_EXPIRED` "Get new quote"; `IDEMPOTENCY_CONFLICT` / `QUOTE_ALREADY_ACCEPTED` / `INVALID_STATE` re-read the transfer and render it; `RATE_LIMITED` back off (respect `Retry-After`); `DEPENDENCY_UNAVAILABLE` keep state, retry read; `INTERNAL_ERROR` show `requestId`.
 - A lost mutation response never triggers a new intent: the same key is replayed or the transfer is re-read.
 
 ### Mock backend
@@ -209,7 +231,7 @@ NEXT_PUBLIC_REAL_ENDPOINTS=session,recipients,quotes   # unlisted groups stay mo
 - Implements the same ApiClient and returns contract-shaped snapshots (same keys, same status order, `version` increments, events appended).
 - Uses `money.ts` fixture math, so mock and real amounts match.
 - Each `advance` call moves at most one step, with a short artificial delay so the animation is visible.
-- Honours `demoScenario`.
+- Honours `demoScenario`, and `demoCheckScenario` on `createQuote` (`REJECT` / `REVIEW` throw the two 422 errors and store no quote; otherwise the quote carries `checks: { mode: "SIMULATED", result: "PASS", reference: "mock_check_…" }`).
 - Persists to `localStorage`, so refresh-resume can be rehearsed in mock mode.
 - Never fakes chain evidence: tx hash shown as `mock-…`, `explorerUrl` null, no Snowtrace link, `MOCK DATA` banner visible.
 - On completion, the mock sends the ntfy push from the browser (`fetch` POST to `https://ntfy.sh/<NEXT_PUBLIC_NTFY_TOPIC>`) and sets `notification.status` to `SENT` (with `sentAt`) or `FAILED`; with no topic it sets `DISABLED`. Before completion it is `NOT_STARTED`. Same enum as the real backend, so the phone moment can be rehearsed in mock mode.
@@ -218,6 +240,7 @@ NEXT_PUBLIC_REAL_ENDPOINTS=session,recipients,quotes   # unlisted groups stay mo
 
 - `parseUsdInput("10.5")` → `"1050"`; rejects signs, exponents, more than two decimals, out-of-range.
 - Estimate (fixture `fixture-us-th-v1`): fee = ceil(2% of debit, cents); principal = debit − fee; THB satang = floor(principal × 35 × 100 / 100). $10.00 → fee $0.20, principal $9.80, ฿343.00.
+- The browser estimate must match person 2's server math exactly. Person 2 confirms the fee/rate/rounding formula and `fixtureVersion`; any fixture change is announced before merge. If they ever differ, the review screen shows the quote's numbers (never the estimate's).
 - Display: BigInt split into whole/fraction, whole part formatted with `Intl.NumberFormat` (`en-US` or `th-TH`), currency symbol prefix. No floating-point money math anywhere.
 
 ### Idempotency and polling
@@ -262,6 +285,7 @@ The backend (person 3) is a standalone, API-only Next.js app in `4rtem1sss/U-hac
   4. Refresh mid-transfer resumes on the same step.
   5. Double-click Confirm creates one transfer.
   6. Let the quote expire on review → Get new quote.
+  6a. Checks scenario `REJECT` → red checks alert on step 1, no review screen. `REVIEW` → amber alert. Back to `PASS` → quote shows "Checks passed · SIMULATED".
   7. Invalid amounts ($0.50, $100.01, `1e2`, `-5`) show inline errors.
   8. TH toggle on every screen; no overflow or untranslated strings.
   9. Keyboard-only run; reduced-motion run.
