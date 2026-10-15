@@ -1,6 +1,9 @@
 "use client";
 
-import { Check, ExternalLink, Link2 } from "lucide-react";
+import { Check, ExternalLink, Link2, Printer } from "lucide-react";
+import { useState } from "react";
+import { Logo } from "@/components/brand/Logo";
+import { getPaySource } from "@/web/wallet";
 import { toast } from "sonner";
 import { SummaryRow } from "@/components/common/SummaryRow";
 import { Button } from "@/components/ui/button";
@@ -14,6 +17,7 @@ export function Receipt({ snapshot: s, onSendAnother }: { snapshot: TransferSnap
   const { t, lang } = useT();
   const a = s.amounts;
   const received = useCountUp(a.destinationNetMinor);
+  const [paidFrom] = useState(() => getPaySource(s.id));
   if (!s.receipt) return null;
 
   async function copyLink() {
@@ -27,18 +31,28 @@ export function Receipt({ snapshot: s, onSendAnother }: { snapshot: TransferSnap
 
   return (
     <section
+      id="invoice"
       aria-labelledby="receipt-title"
       className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8 animate-in fade-in slide-in-from-bottom-4 duration-300"
     >
-      <div className="flex items-center gap-3">
-        <span className="grid size-10 place-items-center rounded-full bg-primary">
-          <Check className="size-5 text-foreground" aria-hidden />
-        </span>
-        <h2 id="receipt-title" className="text-lg font-semibold">{t("receipt.title")}</h2>
+      <div className="mb-6 hidden print:block"><Logo /></div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 place-items-center rounded-full bg-primary print:hidden">
+            <Check className="size-5 text-foreground" aria-hidden />
+          </span>
+          <h2 id="receipt-title" className="text-lg font-semibold">{t("receipt.title")}</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {t("receipt.invoiceNo")} <code className="font-mono text-foreground">INV-{s.receipt.id}</code>
+        </p>
       </div>
 
       <p className="mt-4 text-sm text-muted-foreground">{t("receipt.theyReceived")}</p>
-      <p className="tabular text-4xl font-semibold tracking-tight text-brand">{formatMinor(received, "THB", lang)}</p>
+      <p className="tabular text-4xl font-semibold tracking-tight text-brand">
+        <span className="print:hidden">{formatMinor(received, "THB", lang)}</span>
+        <span className="hidden print:inline">{formatMinor(a.destinationNetMinor, "THB", lang)}</span>
+      </p>
       <p className="mt-2 text-sm font-medium">{t("receipt.summary")}</p>
       {/* Server evidence, verbatim and English only (spec section 2). */}
       <p lang="en" className="mt-1 text-xs text-muted-foreground">{s.receipt.summary}</p>
@@ -48,10 +62,14 @@ export function Receipt({ snapshot: s, onSendAnother }: { snapshot: TransferSnap
         <SummaryRow label={t("send.fee")} value={formatMinor(a.feeMinor, "USD", lang)} />
         <SummaryRow label={t("send.rate")} value={formatRate(s.fx.rateNumerator, s.fx.rateDenominator, lang)} />
         <SummaryRow label={t("receipt.usdc")} value={formatTokenUnits(a.settlementTokenUnits, s.settlement.tokenDecimals)} />
+        <SummaryRow label={t("receipt.sender")} value={t("receipt.senderName")} />
         <SummaryRow
           label={t("receipt.recipient")}
           value={`${s.recipient.name} · ${s.recipient.bankLabel} ${maskAccount(s.recipient.accountDisplay)}`}
         />
+        {paidFrom && (
+          <SummaryRow label={t("receipt.paidFrom")} value={paidFrom === "WALLET" ? t("sheet.wallet") : t("sheet.card")} />
+        )}
         <SummaryRow label={t("receipt.fundingRef")} value={s.funding.reference ?? "—"} />
         <SummaryRow label={t("receipt.payoutRef")} value={s.payout.reference ?? "—"} />
         <SummaryRow
@@ -66,6 +84,9 @@ export function Receipt({ snapshot: s, onSendAnother }: { snapshot: TransferSnap
                     <ExternalLink className="size-3.5" aria-hidden />
                   </a>
                 )}
+                {s.settlement.explorerUrl && (
+                  <span className="hidden break-all font-mono text-xs print:block">{s.settlement.explorerUrl}</span>
+                )}
               </span>
             ) : "—"
           }
@@ -75,11 +96,15 @@ export function Receipt({ snapshot: s, onSendAnother }: { snapshot: TransferSnap
         <SummaryRow label={t("receipt.issued")} value={formatDateTime(s.receipt.issuedAt, lang)} />
       </dl>
 
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row print:hidden">
         <Button className="h-12 flex-1 text-base font-semibold" onClick={onSendAnother}>{t("action.SEND_ANOTHER")}</Button>
         <Button variant="outline" className="h-12 flex-1 text-base" onClick={() => void copyLink()}>
           <Link2 aria-hidden />
           {t("action.COPY_LINK")}
+        </Button>
+        <Button variant="outline" className="h-12 flex-1 text-base" onClick={() => window.print()}>
+          <Printer aria-hidden />
+          {t("action.PRINT")}
         </Button>
       </div>
     </section>
