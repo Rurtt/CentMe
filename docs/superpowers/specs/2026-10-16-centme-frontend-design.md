@@ -38,7 +38,7 @@ CentMe wordmark image (`components/brand/Logo.tsx` renders `public/brand/centme-
 
 - Left: "You send" USD input, prefilled `10.00`. Validation on blur and on Continue: USD 1.00–100.00, at most two decimals; friendly inline message below the field.
 - Left: recipient card, preselected (only one synthetic recipient): "Demo Recipient · Demo Thai Bank · TEST ACCOUNT 0001".
-- Right: live summary card labelled **Estimate**: "They receive ฿343.00", fee, rate "1 USD = 35 THB", "Demo timing only". Computed in the browser using the contract's fixture formula (section 5), so typing never hits the server. Person 2's `POST /api/estimates` returns the same numbers, but the UI does not call it; the final quote is the only number the user accepts.
+- Right: live summary card labelled **Estimate**: "They receive ฿343.00", fee, rate "1 USD = 35 THB", "Demo timing only". Computed in the browser by importing person 2's `@/domain/pricing` (`FIXTURE_US_TH_V1`, `parseSourceDebitMinor`, `computeAmounts`), the same module the server quotes with, so typing never hits the server. The UI does not call `POST /api/estimates`; the final quote is the only number the user accepts.
 - One primary button: **Get final quote**. It creates the real quote (`POST /api/quotes`, which runs the simulated checks) and moves to step 2.
 - Checks blocked: if the quote call returns `CHECKS_REJECTED` or `CHECKS_REVIEW_REQUIRED`, stay on (or return to) step 1 and show an inline alert above the button, with an icon and a `SIMULATED` tag:
   - Rejected (red): "Simulated checks rejected this transfer. No quote was issued."
@@ -168,7 +168,7 @@ src/web/                     all frontend logic, kept apart from backend src/lib
   api/index.ts        per-endpoint mock/real routing
   api/errors.ts       ApiError, NetworkError
   api/ApiProvider.tsx React context
-  money.ts            BigInt minor-unit parse/format + fixture estimate
+  money.ts            BigInt minor-unit parse/format; estimate wraps @/domain/pricing
   format.ts, lang.ts  display helpers
   status.ts           snapshot -> timeline view model + copy keys
   storage.ts          safe localStorage/sessionStorage wrapper
@@ -240,7 +240,7 @@ NEXT_PUBLIC_REAL_ENDPOINTS=session,recipients,quotes   # unlisted groups stay mo
 
 - `parseUsdInput("10.5")` → `"1050"`; rejects signs, exponents, more than two decimals, out-of-range.
 - Estimate (fixture `fixture-us-th-v1`): fee = ceil(2% of debit, cents); principal = debit − fee; THB satang = floor(principal × 35 × 100 / 100). $10.00 → fee $0.20, principal $9.80, ฿343.00.
-- The browser estimate must match person 2's server math exactly. Person 2 confirms the fee/rate/rounding formula and `fixtureVersion`; any fixture change is announced before merge. If they ever differ, the review screen shows the quote's numbers (never the estimate's).
+- The browser estimate uses person 2's `@/domain/pricing` directly (no copied formula), so it matches the server by construction. Check values: 1000 → fee 20 / THB 34300 / USDC 9800000; 101 → fee 3; 151 → fee 4. Recipient ids are opaque (`rcp_<uuid>`); never hard-code one. If they ever differ, the review screen shows the quote's numbers (never the estimate's).
 - Display: BigInt split into whole/fraction, whole part formatted with `Intl.NumberFormat` (`en-US` or `th-TH`), currency symbol prefix. No floating-point money math anywhere.
 
 ### Idempotency and polling
