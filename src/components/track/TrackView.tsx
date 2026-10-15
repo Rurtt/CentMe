@@ -14,7 +14,7 @@ import { errorText } from "@/web/i18n/errorText";
 import { useT } from "@/web/i18n/LanguageProvider";
 import { formatMinor } from "@/web/money";
 import { toView, type PrimaryAction } from "@/web/status";
-import { debitForTransfer } from "@/web/wallet";
+import { reconcileFunding } from "@/web/wallet";
 import { useTransfer } from "@/web/useTransfer";
 import { Details } from "./Details";
 import { NotifiedChip } from "./NotifiedChip";
@@ -29,12 +29,16 @@ export function TrackView({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const autoFundRef = useRef(false);
 
+  // Funding may have been accepted before a reload or a lost POST response.
+  useEffect(() => {
+    if (snapshot) reconcileFunding(snapshot);
+  }, [snapshot]);
   const runFunding = useCallback(async () => {
     setBusy(true);
     try {
       const funded = await api.simulateFunding(id, getOrCreateKey(`funding:${id}`));
       // Declined funding moves no money, so the wallet is only debited on ACCEPTED (once per transfer).
-      if (funded.funding.status === "ACCEPTED") debitForTransfer(id, funded.amounts.sourceDebitMinor);
+      reconcileFunding(funded);
       accept(funded);
       kick();
     } catch (e) {

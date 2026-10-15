@@ -1,3 +1,5 @@
+import { isDrifted } from "./api/drift";
+import type { TransferSnapshot } from "./api/types";
 import { browserStorage, type KeyValueStore } from "./storage";
 
 /** Fake CentMe wallet for the demo. Lives in sessionStorage; the server never knows about it. */
@@ -48,6 +50,12 @@ export function debitForTransfer(transferId: string, amountMinor: string, store:
   store.setItem(debitedKey(transferId), "1");
 }
 
+/** Recover accepted funding after a lost response; once-only markers also cover polling and refresh. */
+export function reconcileFunding(snapshot: TransferSnapshot, store: KeyValueStore = session()): void {
+  if (!isDrifted(snapshot) && snapshot.funding.status === "ACCEPTED") {
+    debitForTransfer(snapshot.id, snapshot.amounts.sourceDebitMinor, store);
+  }
+}
 export function resetWallet(store: KeyValueStore = session()): void {
   for (const id of trackedTransfers(store)) {
     store.removeItem(sourceKey(id));

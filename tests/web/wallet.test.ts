@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { markDrifted } from "@/web/api/drift";
+import { snapshotWith } from "@/web/api/fixtures";
 import { memoryStore } from "@/web/storage";
-import { canPayFromWallet, debitForTransfer, getBalanceMinor, getPaySource, resetWallet, setPaySource } from "@/web/wallet";
+import { canPayFromWallet, reconcileFunding, debitForTransfer, getBalanceMinor, getPaySource, resetWallet, setPaySource } from "@/web/wallet";
 
 describe("wallet", () => {
   it("starts at $50.00", () => {
@@ -68,4 +70,30 @@ it("reset clears tracked sources and debit records, preserving unrelated storage
   expect(getPaySource("card", s)).toBeNull();
   expect(s.getItem("centme:walletDebited:wallet")).toBeNull();
   expect(s.getItem("centme:scenario")).toBe("HAPPY_PATH");
+});
+
+it("recovers an accepted wallet debit from a fetched snapshot once", () => {
+  const s = memoryStore();
+  const accepted = snapshotWith({ status: "COMPLETED_SIMULATED", funding: { status: "ACCEPTED" } });
+  setPaySource(accepted.id, "WALLET", s);
+  reconcileFunding(accepted, s);
+  reconcileFunding(accepted, s);
+  expect(getBalanceMinor(s)).toBe(4000n);
+});
+
+it("never reconciles a debit from declined or pending funding", () => {
+  const s = memoryStore();
+  const pending = snapshotWith({ status: "FUNDING_PENDING", funding: { status: "PENDING" } });
+  setPaySource(pending.id, "WALLET", s);
+  reconcileFunding(pending, s);
+  reconcileFunding(snapshotWith({ status: "FUNDING_FAILED", funding: { status: "DECLINED" } }), s);
+  expect(getBalanceMinor(s)).toBe(5000n);
+});
+
+it("never debits a snapshot rejected by contract validation", () => {
+  const s = memoryStore();
+  const invalid = markDrifted(snapshotWith({ status: "COMPLETED_SIMULATED", funding: { status: "ACCEPTED" } }));
+  setPaySource(invalid.id, "WALLET", s);
+  reconcileFunding(invalid, s);
+  expect(getBalanceMinor(s)).toBe(5000n);
 });

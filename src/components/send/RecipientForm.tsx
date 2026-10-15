@@ -108,6 +108,14 @@ export function RecipientForm({ onSaved, onCancel }: { onSaved(r: Recipient): vo
         <div>
           <label htmlFor="rcp-account" className="text-sm font-medium text-muted-foreground">{t("recipient.account")}</label>
           <input id="rcp-account" ref={refs.accountNumber} value={accountNumber} inputMode="numeric" autoComplete="off" maxLength={12}
+            onPaste={(e) => {
+              e.preventDefault();
+              const field = e.currentTarget;
+              const start = field.selectionStart ?? field.value.length;
+              const end = field.selectionEnd ?? start;
+              setAccountNumber(sanitizeAccountInput(field.value.slice(0, start) + e.clipboardData.getData("text") + field.value.slice(end)));
+              setErrors((x) => ({ ...x, accountNumber: undefined }));
+            }}
             onChange={(e) => { setAccountNumber(sanitizeAccountInput(e.target.value)); setErrors((x) => ({ ...x, accountNumber: undefined })); }}
             aria-invalid={!!errors.accountNumber}
             aria-describedby={errors.accountNumber ? "rcp-account-help rcp-accountNumber-error" : "rcp-account-help"}
