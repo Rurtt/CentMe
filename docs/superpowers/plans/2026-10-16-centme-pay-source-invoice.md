@@ -37,9 +37,9 @@ All code paths below are in `D:\U-hackathon_backend`. Run commands from that fol
 
 The backend repo had **10 uncommitted files** on `feat/ui-polish-recipient` when this plan was written (`src/app/page.tsx`, `RecipientCard.tsx`, `src/domain/recipients.ts`, `ApiProvider.tsx`, `mock.ts`, `en.ts`, `th.ts`, and 3 tests). They are not part of this plan.
 
-- [ ] **Step 1:** Run `git status --short`. If any changes are still there, **stop and ask Pong** whether to commit them on `feat/ui-polish-recipient` first. Do not stash, reset, or discard them.
-- [ ] **Step 2:** After the tree is clean: `git switch -c feat/pay-source-invoice`.
-- [ ] **Step 3:** Baseline: `pnpm test` and `pnpm typecheck`. Both must pass before you start. If they fail, report and stop.
+- [x] **Step 1:** Run `git status --short`. If any changes are still there, **stop and ask Pong** whether to commit them on `feat/ui-polish-recipient` first. Do not stash, reset, or discard them.
+- [x] **Step 2:** After the tree is clean: `git switch -c feat/pay-source-invoice`.
+- [x] **Step 3:** Baseline: `pnpm test` and `pnpm typecheck`. Both must pass before you start. If they fail, report and stop.
 
 ---
 
@@ -54,7 +54,7 @@ The backend repo had **10 uncommitted files** on `feat/ui-polish-recipient` when
 **Interfaces:**
 - Produces: `type BankBrand = { code: BankCode; label: string; short: string; bg: string; fg: string }`, `BANK_BRANDS: readonly BankBrand[]`, `bankByLabel(label: string): BankBrand | undefined`, `bankByCode(code: BankCode): BankBrand`. Component `<BankLogo label={string} size="sm" | "md" />` (sm = 24px, md = 40px; default md).
 
-- [ ] **Step 1: Write the failing test** `tests/web/banks.test.ts`
+- [x] **Step 1: Write the failing test** `tests/web/banks.test.ts`
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -75,9 +75,9 @@ describe("banks", () => {
 });
 ```
 
-- [ ] **Step 2:** `pnpm vitest run tests/web/banks.test.ts` — expect FAIL (cannot resolve `@/web/banks`).
+- [x] **Step 2:** `pnpm vitest run tests/web/banks.test.ts` — expect FAIL (cannot resolve `@/web/banks`).
 
-- [ ] **Step 3: Implement** `src/web/banks.ts`
+- [x] **Step 3: Implement** `src/web/banks.ts`
 
 ```ts
 import { THAI_BANKS, type BankCode } from "@/domain/recipients";
@@ -107,9 +107,9 @@ export function bankByLabel(label: string): BankBrand | undefined {
 }
 ```
 
-- [ ] **Step 4:** `pnpm vitest run tests/web/banks.test.ts` — expect PASS.
+- [x] **Step 4:** `pnpm vitest run tests/web/banks.test.ts` — expect PASS.
 
-- [ ] **Step 5: Badge component** `src/components/common/BankLogo.tsx`
+- [x] **Step 5: Badge component** `src/components/common/BankLogo.tsx`
 
 ```tsx
 import { Landmark } from "lucide-react";
@@ -136,7 +136,7 @@ export function BankLogo({ label, size = "md" }: { label: string; size?: "sm" | 
 }
 ```
 
-- [ ] **Step 6: RecipientCard.** In `src/components/send/RecipientCard.tsx` replace the initials avatar span:
+- [x] **Step 6: RecipientCard.** In `src/components/send/RecipientCard.tsx` replace the initials avatar span:
 
 ```tsx
           <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-secondary font-semibold text-brand">
@@ -156,9 +156,9 @@ with:
 
 Add `import { BankLogo } from "@/components/common/BankLogo";`. Remove `initials` from the `@/web/format` import if nothing else in the file uses it.
 
-- [ ] **Step 7:** `pnpm typecheck && pnpm lint && pnpm test` — all pass.
+- [x] **Step 7:** `pnpm typecheck && pnpm lint && pnpm test` — all pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/web/banks.ts src/components/common/BankLogo.tsx src/components/send/RecipientCard.tsx tests/web/banks.test.ts
@@ -179,7 +179,7 @@ git commit -m "feat(web): bank monogram badges on the recipient card"
 - Consumes: `BANK_BRANDS` from Task 1 (`src/web/banks.ts`), `<BankLogo label size="sm" />`.
 - Produces: `sanitizeAccountInput(raw: string): string`; `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem` from `@/components/ui/select`.
 
-- [ ] **Step 1: Write the failing test.** Append to `tests/web/format.test.ts` (add `sanitizeAccountInput` to its existing `@/web/format` import):
+- [x] **Step 1: Write the failing test.** Append to `tests/web/format.test.ts` (add `sanitizeAccountInput` to its existing `@/web/format` import):
 
 ```ts
 describe("sanitizeAccountInput", () => {
@@ -197,9 +197,9 @@ describe("sanitizeAccountInput", () => {
 });
 ```
 
-- [ ] **Step 2:** `pnpm vitest run tests/web/format.test.ts` — expect FAIL (`sanitizeAccountInput` is not exported).
+- [x] **Step 2:** `pnpm vitest run tests/web/format.test.ts` — expect FAIL (`sanitizeAccountInput` is not exported).
 
-- [ ] **Step 3: Implement.** Append to `src/web/format.ts`:
+- [x] **Step 3: Implement.** Append to `src/web/format.ts`:
 
 ```ts
 /** Account field: digits only, at most 12, so pasting "123-456-7890" works and a 13th digit does nothing. */
@@ -208,9 +208,9 @@ export function sanitizeAccountInput(raw: string): string {
 }
 ```
 
-- [ ] **Step 4:** `pnpm vitest run tests/web/format.test.ts` — expect PASS.
+- [x] **Step 4:** `pnpm vitest run tests/web/format.test.ts` — expect PASS.
 
-- [ ] **Step 5: Select primitive** `src/components/ui/select.tsx`
+- [x] **Step 5: Select primitive** `src/components/ui/select.tsx`
 
 ```tsx
 "use client";
@@ -267,7 +267,7 @@ export function SelectItem({ className, children, ...props }: React.ComponentPro
 }
 ```
 
-- [ ] **Step 6: RecipientForm.** In `src/components/send/RecipientForm.tsx`:
+- [x] **Step 6: RecipientForm.** In `src/components/send/RecipientForm.tsx`:
 
   a. Imports: add
 
@@ -312,11 +312,11 @@ import { sanitizeAccountInput } from "@/web/format";
 
   e. The Enter-to-save handler only fires for `INPUT` targets, so pressing Enter on the closed bank trigger opens the list instead of saving. That is the wanted behaviour; leave it.
 
-- [ ] **Step 7:** `pnpm typecheck && pnpm lint && pnpm test` — all pass.
+- [x] **Step 7:** `pnpm typecheck && pnpm lint && pnpm test` — all pass.
 
-- [ ] **Step 8: Manual check** (`pnpm dev`, open `http://localhost:3000`): Change recipient, Tab to the bank picker, press Space, arrow to SCB, Enter. The trigger shows the SCB badge + "SCB". Type 15 digits: only 12 appear. Save with no bank picked: error under the bank field and focus lands on the trigger.
+- [x] **Step 8: Manual check** (`pnpm dev`, open `http://localhost:3000`): Change recipient, Tab to the bank picker, press Space, arrow to SCB, Enter. The trigger shows the SCB badge + "SCB". Type 15 digits: only 12 appear. Save with no bank picked: error under the bank field and focus lands on the trigger.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/web/format.ts src/components/ui/select.tsx src/components/send/RecipientForm.tsx tests/web/format.test.ts
@@ -763,3 +763,15 @@ git commit -m "feat(web): printable invoice on the receipt"
   - At 375px the sheet's two options and the receipt's three buttons stack with no horizontal scroll.
 - [ ] **Step 3:** Append results to `docs/superpowers/plans/2026-10-16-centme-pay-source-invoice.md` (U-Hackathon repo) under a `## Walkthrough results` heading and commit there: `docs: walkthrough results for pay source + invoice`.
 - [ ] **Step 4:** Push `feat/pay-source-invoice` and open a PR into the branch `feat/ui-polish-recipient` targets, only after Pong says yes.
+
+## Execution checkpoint — 2026-10-16
+
+Implementation repo: `D:\U-hackathon_backend`, branch `feat/pay-source-invoice`, base `e071489` (`centme-main`). `feat/ui-polish-recipient` is already merged and its source contents match the base exactly. Baseline: 503 passed, 121 skipped; typecheck passed. Handoff committed in U-Hackathon as `6ca8d79`.
+
+- Task 1: complete, commit `289038d`. Files: `src/web/banks.ts`, `src/components/common/BankLogo.tsx`, `src/components/send/RecipientCard.tsx`, `tests/web/banks.test.ts`. RED: missing banks module. GREEN: 3 bank tests; full suite 506 passed, 121 skipped; typecheck and lint passed.
+- Task 2: complete, commit `471c1a2`. Files: `src/web/format.ts`, `src/components/ui/select.tsx`, `src/components/send/RecipientForm.tsx`, `tests/web/format.test.ts`. RED: three sanitizer failures. GREEN: 7 format tests; full suite 509 passed, 121 skipped; typecheck and lint passed. Browser at 1280px in EN: keyboard SCB selection and card badge, 15-digit input capped at 12, name and bank validation focus passed.
+- Task 3: implemented as planned, not committed. Original 7 wallet tests passed; typecheck, lint, full suite (516 passed, 121 skipped), and mock-mode production build passed before adding the regression below. Browser checks for Task 3 have not run.
+- Task 3 blocker: `src/web/api/mock.ts` resets its ID counter to zero, while the planned `resetWallet()` only removes the balance. Existing `centme:walletDebited:<id>` markers then prevent a new transfer with a reused ID from debiting. Added a failing behavioral regression in `tests/web/wallet.test.ts`: after reset, a new $10 wallet transfer with the same ID leaves 5000 minor units; expected 4000. Latest focused result: 7 passed, 1 failed. Awaiting Pong's decision to update reset cleanup before proceeding.
+- Tasks 4 and 5: not started. No push or PR.
+
+Environment notes: installed Node v24.11.1 emits an engine warning because the project requests Node >=22 <23. Existing dev server on port 3000 uses real endpoints. Browser checks ran against an isolated mock production build on port 3100 with notifications disabled; that server has been stopped. The existing dev server and `.env.local` were not changed. Impeccable context launcher could not install its engine under the sandbox; existing source and palette were inspected directly. Playwright MCP profile was occupied; an isolated headless Playwright browser was used instead.
