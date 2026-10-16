@@ -151,6 +151,10 @@ tests/            Vitest suites (unit, domain, server, api, db, contract, settle
 scripts/          local Postgres, migrations, demo seed and flow
 ```
 
+## How we built it
+
+We split the work between three AI tools. Claude Code handled planning: it turned each feature into a design spec and a step-by-step implementation plan, both saved as repo docs. U-bot executed those plans and wrote the code. Codex picked up handoffs from the same docs to run execution passes and scripted browser walkthroughs and to check results. Since the plans and handoffs lived in the repo rather than in chat, any tool could continue where another stopped. Every change still had to pass CI before it was merged.
+
 ## Status and limits
 
 CentMe is a hackathon prototype. It moves test tokens only and holds no real money. There are no user accounts yet. Funding, conversion, checks and payout are simulations, and the rate and fee are illustrative. Running it for real would need licensed fiat on-ramp and payout partners, real KYC and sanctions screening, and live pricing.
