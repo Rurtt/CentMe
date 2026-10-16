@@ -1,11 +1,10 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, ViewTransition } from "react";
 import { toast } from "sonner";
 import { SummaryRow } from "@/components/common/SummaryRow";
-import { Button } from "@/components/ui/button";
+import { Button, LoadingLabel } from "@/components/ui/button";
 import { useApi } from "@/web/api/ApiProvider";
 import { isApiError } from "@/web/api/errors";
 import type { Quote, Recipient } from "@/web/api/types";
@@ -19,6 +18,8 @@ import { canPayFromWallet, getBalanceMinor, setPaySource, type PaySource } from 
 import { cn } from "@/web/utils";
 import { BankSheet } from "./BankSheet";
 import { ExpiryCountdown } from "./ExpiryCountdown";
+
+const PAID_MS = 450;
 
 type Props = {
   quote: Quote;
@@ -37,6 +38,7 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
   const [source, setSource] = useState<PaySource>("CARD");
   const [balanceMinor, setBalanceMinor] = useState(() => getBalanceMinor());
   const [paying, setPaying] = useState(false);
+  const [paid, setPaid] = useState(false);
   const payingRef = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -56,6 +58,9 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
         key,
       );
       setPaySource(transfer.id, source);
+      // Show the success state on the button briefly before leaving.
+      setPaid(true);
+      await new Promise((resolve) => setTimeout(resolve, PAID_MS));
       router.replace(`/transfers/${encodeURIComponent(transfer.id)}?fund=1`);
     } catch (e) {
       payingRef.current = false;
@@ -81,14 +86,16 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
         <h1 id="review-title" ref={headingRef} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
           {t("review.title")}
         </h1>
-        <ExpiryCountdown expiresAt={quote.expiresAt} expired={expired} onExpire={() => setExpired(true)} />
+        <ExpiryCountdown expiresAt={quote.expiresAt} createdAt={quote.createdAt} expired={expired} onExpire={() => setExpired(true)} />
       </div>
 
       <div className={cn("mt-6 transition-opacity", expired && "opacity-50")}>
         <p className="text-sm text-muted-foreground">{t("send.theyReceive")}</p>
-        <p className="tabular mt-1 text-4xl font-semibold tracking-tight text-brand">
-          {formatMinor(quote.destinationNetMinor, "THB", lang)}
-        </p>
+        <ViewTransition name="thb-amount" share="thb-morph" default="none">
+          <p className="tabular mt-1 text-4xl font-semibold tracking-tight text-brand">
+            {formatMinor(quote.destinationNetMinor, "THB", lang)}
+          </p>
+        </ViewTransition>
         <dl className="mt-6 space-y-3 border-t pt-6 text-base">
           <SummaryRow label={t("review.youSend")} value={amountText} strong />
           <SummaryRow label={t("send.fee")} value={formatMinor(quote.feeMinor, "USD", lang)} />
@@ -109,9 +116,8 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
 
       <div className="mt-8 flex flex-col gap-3">
         {expired ? (
-          <Button className="h-12 text-base font-semibold" onClick={() => void onNewQuote()} disabled={quoting}>
-            {quoting && <Loader2 className="animate-spin" aria-hidden />}
-            {t("review.newQuote")}
+          <Button className="h-12 text-base font-semibold" onClick={() => void onNewQuote()} disabled={quoting} aria-busy={quoting}>
+            <LoadingLabel loading={quoting}>{t("review.newQuote")}</LoadingLabel>
           </Button>
         ) : (
           <Button className="h-12 text-base font-semibold" onClick={() => { setBalanceMinor(getBalanceMinor()); setSource("CARD"); setSheetOpen(true); }}>
@@ -134,6 +140,7 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
         source={source}
         onSourceChange={setSource}
         paying={paying}
+        paid={paid}
         onConfirm={() => void confirm()}
       />
     </section>

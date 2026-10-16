@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ExternalLink, Link2, Printer } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { getPaySource } from "@/web/wallet";
 import { toast } from "sonner";
@@ -12,18 +12,25 @@ import { formatDateTime, maskAccount, shortHash } from "@/web/format";
 import { useT } from "@/web/i18n/LanguageProvider";
 import { formatMinor, formatRate, formatTokenUnits } from "@/web/money";
 import { useCountUp } from "@/web/useCountUp";
+import { cn } from "@/web/utils";
 
 export function Receipt({ snapshot: s, onSendAnother }: { snapshot: TransferSnapshot; onSendAnother(): void }) {
   const { t, lang } = useT();
   const a = s.amounts;
   const received = useCountUp(a.destinationNetMinor);
   const [paidFrom] = useState(() => getPaySource(s.id));
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
   if (!s.receipt) return null;
 
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(window.location.href);
       toast.success(t("action.copied"));
+      setCopied(true);
+      clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 1200);
     } catch {
       toast(window.location.href);
     }
@@ -98,8 +105,11 @@ export function Receipt({ snapshot: s, onSendAnother }: { snapshot: TransferSnap
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row print:hidden">
         <Button className="h-12 flex-1 text-base font-semibold" onClick={onSendAnother}>{t("action.SEND_ANOTHER")}</Button>
-        <Button variant="outline" className="h-12 flex-1 text-base" onClick={() => void copyLink()}>
-          <Link2 aria-hidden />
+        <Button variant="outline" className="h-12 flex-1 px-3 text-base" onClick={() => void copyLink()}>
+          <span className="grid size-4 place-items-center *:col-start-1 *:row-start-1">
+            <Link2 aria-hidden className={cn("transition-opacity duration-150", copied && "opacity-0")} />
+            {copied && <Check aria-hidden className="draw-check" />}
+          </span>
           {t("action.COPY_LINK")}
         </Button>
         <Button variant="outline" className="h-12 flex-1 text-base" onClick={() => window.print()}>

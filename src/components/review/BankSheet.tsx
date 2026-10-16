@@ -1,8 +1,8 @@
 "use client";
 
-import { CreditCard, Loader2, Wallet } from "lucide-react";
+import { Check, CreditCard, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, LoadingLabel } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useT } from "@/web/i18n/LanguageProvider";
 import { cn } from "@/web/utils";
@@ -17,10 +17,11 @@ type Props = {
   source: PaySource;
   onSourceChange(source: PaySource): void;
   paying: boolean;
+  paid: boolean;
   onConfirm(): void;
 };
 
-export function BankSheet({ open, onOpenChange, amountText, balanceText, walletEnough, source, onSourceChange, paying, onConfirm }: Props) {
+export function BankSheet({ open, onOpenChange, amountText, balanceText, walletEnough, source, onSourceChange, paying, paid, onConfirm }: Props) {
   const { t } = useT();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -43,9 +44,19 @@ export function BankSheet({ open, onOpenChange, amountText, balanceText, walletE
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={paying}>
             {t("sheet.cancel")}
           </Button>
-          <Button className="h-12 text-base font-semibold" onClick={onConfirm} disabled={paying} autoFocus>
-            {paying && <Loader2 className="animate-spin" aria-hidden />}
-            {t("sheet.confirm")}
+          <Button
+            className={cn("h-12 text-base font-semibold", paid && "disabled:opacity-100")}
+            onClick={onConfirm}
+            disabled={paying}
+            aria-busy={paying && !paid}
+            autoFocus
+          >
+            <LoadingLabel
+              loading={paying}
+              done={paid && (<><Check className="draw-check" aria-hidden />{t("sheet.paid")}</>)}
+            >
+              {t("sheet.confirm")}
+            </LoadingLabel>
           </Button>
         </DialogFooter>
       </DialogContent>

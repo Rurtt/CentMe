@@ -1,14 +1,13 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { addTransitionType, startTransition, useEffect, useRef, useState, ViewTransition, type FormEvent } from "react";
 import { toast } from "sonner";
 import { AmountField } from "@/components/send/AmountField";
 import { EstimateCard } from "@/components/send/EstimateCard";
 import { ChecksAlert, type ChecksBlock } from "@/components/send/ChecksAlert";
 import { RecipientCard } from "@/components/send/RecipientCard";
 import { ReviewStep } from "@/components/review/ReviewStep";
-import { Button } from "@/components/ui/button";
+import { Button, LoadingLabel } from "@/components/ui/button";
 import { useApi } from "@/web/api/ApiProvider";
 import { isApiError } from "@/web/api/errors";
 import type { Quote, Recipient } from "@/web/api/types";
@@ -21,6 +20,9 @@ import { browserStorage } from "@/web/storage";
 
 const AMOUNT_KEY = "centme:amount";
 
+// Step slide direction; the matching CSS lives in globals.css (Send <-> Review motion).
+const STEP_SLIDE = { "step-forward": "step-forward", "step-back": "step-back", default: "none" } as const;
+
 export default function SendPage() {
   const { api, resetCount } = useApi();
   const { t } = useT();
@@ -28,6 +30,7 @@ export default function SendPage() {
   const [amount, setAmount] = useState("10.00");
   const [amountError, setAmountError] = useState<ParseError | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [shakeKey, setShakeKey] = useState(0);
   const [recipient, setRecipient] = useState<Recipient | null>(null);
   const [recipientFailed, setRecipientFailed] = useState(false);
   // While the new-recipient form is open, a quote would go to the old recipient.
@@ -72,13 +75,17 @@ export default function SendPage() {
   }
 
   function onAmountBlur() {
-    if (amount.trim() !== "" && !parsed.ok) setAmountError(parsed.error);
+    if (amount.trim() !== "" && !parsed.ok) {
+      setAmountError(parsed.error);
+      setShakeKey((k) => k + 1);
+    }
   }
 
   async function requestQuote(): Promise<boolean> {
     const p = parseUsdInput(amount);
     if (!p.ok) {
       setAmountError(p.error);
+      setShakeKey((k) => k + 1);
       inputRef.current?.focus();
       return false;
     }
@@ -103,6 +110,7 @@ export default function SendPage() {
         setStep(1);
       } else if (isApiError(e, "INVALID_INPUT")) {
         setServerError(e.fieldErrors.sourceDebitMinor ?? e.message);
+        setShakeKey((k) => k + 1);
         inputRef.current?.focus();
       } else {
         toast.error(errorText(e, t));
@@ -115,37 +123,53 @@ export default function SendPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (await requestQuote()) setStep(2);
+    if (await requestQuote()) {
+      // A transition (not a plain setState) is what activates the ViewTransition below.
+      startTransition(() => {
+        addTransitionType("step-forward");
+        setStep(2);
+      });
+    }
+  }
+
+  function backToForm() {
+    startTransition(() => {
+      addTransitionType("step-back");
+      setStep(1);
+    });
   }
 
   if (step === 2 && quote && recipient) {
     return (
-      <ReviewStep
-        key={quote.id}
-        quote={quote}
-        recipient={recipient}
-        onEdit={() => setStep(1)}
-        onNewQuote={requestQuote}
-        quoting={quoting}
-      />
+      <ViewTransition key="review" enter={STEP_SLIDE} exit={STEP_SLIDE} default="none">
+        <ReviewStep
+          key={quote.id}
+          quote={quote}
+          recipient={recipient}
+          onEdit={backToForm}
+          onNewQuote={requestQuote}
+          quoting={quoting}
+        />
+      </ViewTransition>
     );
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_380px] lg:items-start">
-      <form onSubmit={onSubmit} aria-labelledby="send-title" className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8" noValidate>
-        <h1 id="send-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">{t("send.title")}</h1>
-        <div className="mt-8 space-y-6">
-          <AmountField value={amount} onChange={onAmountChange} onBlur={onAmountBlur} errorText={fieldError} inputRef={inputRef} />
-          <RecipientCard recipient={recipient} failed={recipientFailed} onChange={onRecipientChange} onEditingChange={setEditingRecipient} />
-        </div>
-        {checksBlock && <ChecksAlert code={checksBlock} />}
-        <Button type="submit" className="mt-8 h-12 w-full text-base font-semibold" disabled={quoting || !recipient || editingRecipient}>
-          {quoting && <Loader2 className="animate-spin" aria-hidden />}
-          {t("send.continue")}
-        </Button>
-      </form>
-      <EstimateCard estimate={estimate} />
-    </div>
+    <ViewTransition key="send" enter={STEP_SLIDE} exit={STEP_SLIDE} default="none">
+      <div className="grid gap-6 lg:grid-cols-[1fr_380px] lg:items-start">
+        <form onSubmit={onSubmit} aria-labelledby="send-title" className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8" noValidate>
+          <h1 id="send-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">{t("send.title")}</h1>
+          <div className="mt-8 space-y-6">
+            <AmountField value={amount} onChange={onAmountChange} onBlur={onAmountBlur} errorText={fieldError} inputRef={inputRef} shakeKey={shakeKey} />
+            <RecipientCard recipient={recipient} failed={recipientFailed} onChange={onRecipientChange} onEditingChange={setEditingRecipient} />
+          </div>
+          {checksBlock && <ChecksAlert code={checksBlock} />}
+          <Button type="submit" className="mt-8 h-12 w-full text-base font-semibold" disabled={quoting || !recipient || editingRecipient} aria-busy={quoting}>
+            <LoadingLabel loading={quoting}>{t("send.continue")}</LoadingLabel>
+          </Button>
+        </form>
+        <EstimateCard estimate={estimate} />
+      </div>
+    </ViewTransition>
   );
 }
