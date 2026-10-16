@@ -38,7 +38,7 @@ function subscribeReducedMotion(onChange: () => void) {
 /** Hex digits after the "0x" prefix, which is all the scramble may touch (keeps "mock-0x" and "0x" intact). */
 function isScrambled(text: string, i: number): boolean {
   const start = text.indexOf("0x");
-  return i >= (start < 0 ? 0 : start + 2) && /[0-9a-f]/i.test(text[i]);
+  return i >= (start < 0 ? 0 : start + 2) && /[0-9a-f]/i.test(text.charAt(i));
 }
 
 /** Shows `text` as random hex that locks in left to right (~600ms) whenever `text` changes. */
