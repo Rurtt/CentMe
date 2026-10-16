@@ -35,6 +35,12 @@ function subscribeReducedMotion(onChange: () => void) {
   return () => mq.removeEventListener("change", onChange);
 }
 
+/** Hex digits after the "0x" prefix, which is all the scramble may touch (keeps "mock-0x" and "0x" intact). */
+function isScrambled(text: string, i: number): boolean {
+  const start = text.indexOf("0x");
+  return i >= (start < 0 ? 0 : start + 2) && /[0-9a-f]/i.test(text[i]);
+}
+
 /** Shows `text` as random hex that locks in left to right (~600ms) whenever `text` changes. */
 function useScramble(text: string): string {
   const reduced = useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION).matches, () => false);
@@ -46,7 +52,7 @@ function useScramble(text: string): string {
       tick++;
       const locked = Math.floor((text.length * tick) / SCRAMBLE_TICKS);
       const shown = Array.from(text, (ch, i) =>
-        i < locked || !/[0-9a-f]/i.test(ch) ? ch : "0123456789abcdef"[Math.floor(Math.random() * 16)],
+        i < locked || !isScrambled(text, i) ? ch : "0123456789abcdef"[Math.floor(Math.random() * 16)],
       ).join("");
       setState({ target: text, shown });
       if (tick >= SCRAMBLE_TICKS) clearInterval(id);
@@ -55,7 +61,7 @@ function useScramble(text: string): string {
   }, [text, reduced]);
   if (reduced) return text;
   // Before the first tick, hold the right width without leaking the final value.
-  return state.target === text ? state.shown : text.replace(/[0-9a-f]/gi, "0");
+  return state.target === text ? state.shown : Array.from(text, (ch, i) => (isScrambled(text, i) ? "0" : ch)).join("");
 }
 
 function SettlementEvidence({ snapshot }: { snapshot: TransferSnapshot }) {
