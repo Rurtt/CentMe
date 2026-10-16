@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { BankLogo } from "@/components/common/BankLogo";
 import { RecipientForm } from "@/components/send/RecipientForm";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Recipient } from "@/web/api/types";
 import { maskAccount } from "@/web/format";
 import { useT } from "@/web/i18n/LanguageProvider";
@@ -54,7 +55,9 @@ export function RecipientCard({ recipient, failed, onChange, onEditingChange }: 
           ) : failed ? (
             <p className="text-sm text-destructive">{t("error.recipients")}</p>
           ) : (
-            <div role="status" aria-label={t("common.loading")} className="h-10 w-48 animate-pulse rounded bg-muted" />
+            <div role="status" aria-label={t("common.loading")}>
+              <Skeleton className="h-10 w-48" />
+            </div>
           )}
         </div>
       )}

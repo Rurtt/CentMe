@@ -43,6 +43,7 @@ export const en = {
   "sheet.balance": "Balance {amount}",
   "sheet.lowBalance": "Not enough balance",
   "sheet.confirm": "Confirm payment",
+  "sheet.paid": "Paid",
   "sheet.cancel": "Cancel",
 
   "review.title": "Check before you send",

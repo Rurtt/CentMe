@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/web/api/ApiProvider";
 import { isDrifted } from "@/web/api/drift";
 import { ApiError, isApiError, NetworkError } from "@/web/api/errors";
@@ -14,12 +15,20 @@ import { errorText } from "@/web/i18n/errorText";
 import { useT } from "@/web/i18n/LanguageProvider";
 import { formatMinor } from "@/web/money";
 import { toView, type PrimaryAction } from "@/web/status";
+import { cn } from "@/web/utils";
 import { reconcileFunding } from "@/web/wallet";
 import { useTransfer } from "@/web/useTransfer";
 import { Details } from "./Details";
 import { NotifiedChip } from "./NotifiedChip";
 import { Receipt } from "./Receipt";
 import { Timeline } from "./Timeline";
+
+const SKELETON_ROWS = [
+  { title: "w-40", sub: "w-28" },
+  { title: "w-52", sub: "w-32" },
+  { title: "w-36", sub: null },
+  { title: "w-44", sub: null },
+];
 
 export function TrackView({ id }: { id: string }) {
   const { api } = useApi();
@@ -93,10 +102,18 @@ export function TrackView({ id }: { id: string }) {
     }
     return (
       <section role="status" aria-label={t("common.loading")} className="mx-auto max-w-3xl rounded-2xl border bg-card p-8 shadow-sm">
-        <div className="h-4 w-48 animate-pulse rounded bg-muted" />
-        <div className="mt-3 h-8 w-72 animate-pulse rounded bg-muted" />
-        <div className="mt-8 space-y-6">
-          {[0, 1, 2, 3].map((i) => <div key={i} className="h-10 animate-pulse rounded bg-muted" />)}
+        <Skeleton className="h-4 w-56" />
+        <Skeleton className="mt-3 h-8 w-72 max-w-full" delayMs={60} />
+        <div className="mt-8">
+          {SKELETON_ROWS.map((row, i) => (
+            <div key={i} className="flex gap-4 pb-8 last:pb-0">
+              <Skeleton className="size-10 shrink-0 rounded-full" delayMs={i * 90} />
+              <div className="flex-1 pt-2">
+                <Skeleton className={cn("h-4", row.title)} delayMs={i * 90} />
+                {row.sub && <Skeleton className={cn("mt-2 h-3", row.sub)} delayMs={i * 90 + 45} />}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
     );
@@ -109,7 +126,7 @@ export function TrackView({ id }: { id: string }) {
 
   return (
     <div className="mx-auto grid max-w-3xl gap-6">
-      <section aria-labelledby="track-title" className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
+      <section aria-labelledby="track-title" className="animate-rise rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
         <p className="tabular text-sm text-muted-foreground">
           {t("track.summary", {
             send: formatMinor(a.sourceDebitMinor, "USD", lang),
@@ -118,7 +135,7 @@ export function TrackView({ id }: { id: string }) {
           })}
         </p>
         <h1 id="track-title" aria-live="polite" className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-          {t(view.headlineKey)}
+          <span key={view.headlineKey} className="inline-block animate-rise">{t(view.headlineKey)}</span>
         </h1>
 
         {error instanceof NetworkError && (

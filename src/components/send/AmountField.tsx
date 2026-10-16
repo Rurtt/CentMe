@@ -1,6 +1,6 @@
 "use client";
 
-import type { Ref } from "react";
+import { useState, type Ref } from "react";
 import { useT } from "@/web/i18n/LanguageProvider";
 import { cn } from "@/web/utils";
 
@@ -10,19 +10,28 @@ type Props = {
   onBlur(): void;
   errorText: string | null;
   inputRef: Ref<HTMLInputElement>;
+  /** Bump on every failed submit/blur to replay the shake once. */
+  shakeKey: number;
 };
 
-export function AmountField({ value, onChange, onBlur, errorText, inputRef }: Props) {
+export function AmountField({ value, onChange, onBlur, errorText, inputRef, shakeKey }: Props) {
   const { t } = useT();
+  // The class is dropped when the animation ends so the next bump re-adds it (no remount: focus stays).
+  const [shookKey, setShookKey] = useState(0);
+  const shaking = shakeKey > 0 && shakeKey !== shookKey;
   return (
     <div>
       <label htmlFor="amount" className="text-sm font-medium text-muted-foreground">
         {t("send.amountLabel")}
       </label>
       <div
+        onAnimationEnd={(e) => {
+          if (e.target === e.currentTarget) setShookKey(shakeKey);
+        }}
         className={cn(
           "mt-2 flex items-center rounded-xl border bg-background px-4 focus-within:ring-2 focus-within:ring-ring",
           errorText && "border-destructive",
+          shaking && "animate-shake",
         )}
       >
         <span aria-hidden className="text-3xl font-semibold text-muted-foreground">$</span>
@@ -41,9 +50,9 @@ export function AmountField({ value, onChange, onBlur, errorText, inputRef }: Pr
         <span className="text-base font-medium text-muted-foreground">USD</span>
       </div>
       {errorText ? (
-        <p id="amount-error" role="alert" className="mt-2 text-sm font-medium text-destructive">{errorText}</p>
+        <p key={errorText} id="amount-error" role="alert" className="mt-2 animate-rise text-sm font-medium text-destructive">{errorText}</p>
       ) : (
-        <p id="amount-help" className="mt-2 text-sm text-muted-foreground">{t("send.amountHelp")}</p>
+        <p key="help" id="amount-help" className="mt-2 animate-rise text-sm text-muted-foreground">{t("send.amountHelp")}</p>
       )}
     </div>
   );

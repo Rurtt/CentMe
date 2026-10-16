@@ -65,4 +65,10 @@ describe("interpolateMinor", () => {
     expect(interpolateMinor("34300", 1.7)).toBe("34300");
     expect(interpolateMinor("34300", -1)).toBe("0");
   });
+  it("interpolates from a non-zero start, up or down", () => {
+    expect(interpolateMinor("2000", 0, "1000")).toBe("1000");
+    expect(interpolateMinor("2000", 0.5, "1000")).toBe("1500");
+    expect(interpolateMinor("2000", 1, "1000")).toBe("2000");
+    expect(interpolateMinor("1000", 0.5, "2000")).toBe("1500");
+  });
 });

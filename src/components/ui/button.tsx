@@ -1,10 +1,11 @@
 import * as React from "react"
+import { Loader2 } from "lucide-react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/web/utils"
 import { Slot } from "radix-ui"
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-snappy active:scale-[0.97] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -60,4 +61,29 @@ function Button({
   )
 }
 
-export { Button, buttonVariants }
+/**
+ * Button content that never shifts: the idle label, spinner and optional `done` content share one
+ * grid cell and crossfade. The label stays in the DOM (hidden) while loading so the name is kept.
+ */
+function LoadingLabel({
+  loading,
+  done,
+  children,
+}: {
+  loading: boolean
+  done?: React.ReactNode
+  children: React.ReactNode
+}) {
+  const layer = "transition-opacity duration-150"
+  return (
+    <span className="inline-grid items-center justify-items-center *:col-start-1 *:row-start-1">
+      <span className={cn(layer, (loading || done) && "opacity-0")}>{children}</span>
+      <span aria-hidden className={cn(layer, (!loading || done) && "opacity-0")}>
+        <Loader2 className="animate-spin" />
+      </span>
+      {done && <span className="inline-flex animate-in items-center gap-2 duration-150 fade-in">{done}</span>}
+    </span>
+  )
+}
+
+export { Button, buttonVariants, LoadingLabel }

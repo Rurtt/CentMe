@@ -55,6 +55,7 @@ export const th: Record<MessageKey, string> = {
   "sheet.lowBalance": "ยอดเงินไม่พอ",
   "sheet.desc": "ตรวจสอบยอดเงิน แล้วกดยืนยัน",
   "sheet.confirm": "ยืนยันการชำระเงิน",
+  "sheet.paid": "ชำระแล้ว",
   "sheet.cancel": "ยกเลิก",
   "tag.SIMULATED": "จำลอง",
   "tag.TESTNET": "Testnet · Fuji",

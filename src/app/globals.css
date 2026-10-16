@@ -61,6 +61,14 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  /* Motion tokens: 120ms press, 200ms fade, 320ms enter. */
+  --ease-snappy: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-shimmer: centme-shimmer 1.4s infinite;
+  --animate-ping-ring: centme-ping 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  --animate-pop: centme-pop 340ms cubic-bezier(0.3, 1.5, 0.5, 1);
+  --animate-shake: centme-shake 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-throb: centme-throb 1s ease-in-out infinite;
+  --animate-rise: centme-rise 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 @layer base {
@@ -83,6 +91,60 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+@keyframes centme-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes centme-ping {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 40%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+@keyframes centme-pop {
+  from {
+    transform: scale(0.8);
+  }
+}
+@keyframes centme-shake {
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+@keyframes centme-throb {
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--destructive) 18%, transparent);
+  }
+}
+@keyframes centme-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Skeleton block with a shimmer sweep. Stagger rows with style={{ "--skeleton-delay": "90ms" }}. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  /* --muted alone is almost invisible on the white card. */
+  background: color-mix(in srgb, var(--border) 80%, var(--muted));
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.7), transparent);
+  animation: var(--animate-shimmer);
+  animation-delay: var(--skeleton-delay, 0ms);
 }
 
 @keyframes centme-draw {
