@@ -1,6 +1,5 @@
 "use client";
 
-import { ViewTransition } from "react";
 import { SummaryRow } from "@/components/common/SummaryRow";
 import { useT } from "@/web/i18n/LanguageProvider";
 import { FIXTURE, formatMinor, formatRate, type Estimate } from "@/web/money";
@@ -18,11 +17,9 @@ export function EstimateCard({ estimate }: { estimate: Estimate | null }) {
         <h2 id="estimate-title" className="text-sm font-medium text-muted-foreground">{t("send.theyReceive")}</h2>
         <span className="rounded-full border border-dashed px-2 py-0.5 text-xs font-medium text-muted-foreground">{t("send.estimate")}</span>
       </div>
-      <ViewTransition name="thb-amount" share="thb-morph" default="none">
-        <p className="tabular mt-2 text-4xl font-semibold tracking-tight text-brand">
-          {estimate ? formatMinor(net, "THB", lang) : "—"}
-        </p>
-      </ViewTransition>
+      <p className="tabular mt-2 text-4xl font-semibold tracking-tight text-brand">
+        {estimate ? formatMinor(net, "THB", lang) : "—"}
+      </p>
       <dl className="mt-6 space-y-3 text-base">
         <SummaryRow label={t("send.fee")} value={estimate ? formatMinor(fee, "USD", lang) : "—"} />
         <SummaryRow label={t("send.rate")} value={formatRate(FIXTURE.rateNumerator.toString(), FIXTURE.rateDenominator.toString(), lang)} />

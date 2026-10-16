@@ -1,6 +1,6 @@
 "use client";
 
-import { addTransitionType, startTransition, useEffect, useRef, useState, ViewTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { AmountField } from "@/components/send/AmountField";
 import { EstimateCard } from "@/components/send/EstimateCard";
@@ -19,9 +19,6 @@ import { pickRecipient, RECIPIENT_KEY } from "@/web/recipientChoice";
 import { browserStorage } from "@/web/storage";
 
 const AMOUNT_KEY = "centme:amount";
-
-// Step slide direction; the matching CSS lives in globals.css (Send <-> Review motion).
-const STEP_SLIDE = { "step-forward": "step-forward", "step-back": "step-back", default: "none" } as const;
 
 export default function SendPage() {
   const { api, resetCount } = useApi();
@@ -123,53 +120,36 @@ export default function SendPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (await requestQuote()) {
-      // A transition (not a plain setState) is what activates the ViewTransition below.
-      startTransition(() => {
-        addTransitionType("step-forward");
-        setStep(2);
-      });
-    }
-  }
-
-  function backToForm() {
-    startTransition(() => {
-      addTransitionType("step-back");
-      setStep(1);
-    });
+    if (await requestQuote()) setStep(2);
   }
 
   if (step === 2 && quote && recipient) {
     return (
-      <ViewTransition key="review" enter={STEP_SLIDE} exit={STEP_SLIDE} default="none">
-        <ReviewStep
-          key={quote.id}
-          quote={quote}
-          recipient={recipient}
-          onEdit={backToForm}
-          onNewQuote={requestQuote}
-          quoting={quoting}
-        />
-      </ViewTransition>
+      <ReviewStep
+        key={quote.id}
+        quote={quote}
+        recipient={recipient}
+        onEdit={() => setStep(1)}
+        onNewQuote={requestQuote}
+        quoting={quoting}
+      />
     );
   }
 
   return (
-    <ViewTransition key="send" enter={STEP_SLIDE} exit={STEP_SLIDE} default="none">
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px] lg:items-start">
-        <form onSubmit={onSubmit} aria-labelledby="send-title" className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8" noValidate>
-          <h1 id="send-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">{t("send.title")}</h1>
-          <div className="mt-8 space-y-6">
-            <AmountField value={amount} onChange={onAmountChange} onBlur={onAmountBlur} errorText={fieldError} inputRef={inputRef} shakeKey={shakeKey} />
-            <RecipientCard recipient={recipient} failed={recipientFailed} onChange={onRecipientChange} onEditingChange={setEditingRecipient} />
-          </div>
-          {checksBlock && <ChecksAlert code={checksBlock} />}
-          <Button type="submit" className="mt-8 h-12 w-full text-base font-semibold" disabled={quoting || !recipient || editingRecipient} aria-busy={quoting}>
-            <LoadingLabel loading={quoting}>{t("send.continue")}</LoadingLabel>
-          </Button>
-        </form>
-        <EstimateCard estimate={estimate} />
-      </div>
-    </ViewTransition>
+    <div className="grid gap-6 lg:grid-cols-[1fr_380px] lg:items-start">
+      <form onSubmit={onSubmit} aria-labelledby="send-title" className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8" noValidate>
+        <h1 id="send-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">{t("send.title")}</h1>
+        <div className="mt-8 space-y-6">
+          <AmountField value={amount} onChange={onAmountChange} onBlur={onAmountBlur} errorText={fieldError} inputRef={inputRef} shakeKey={shakeKey} />
+          <RecipientCard recipient={recipient} failed={recipientFailed} onChange={onRecipientChange} onEditingChange={setEditingRecipient} />
+        </div>
+        {checksBlock && <ChecksAlert code={checksBlock} />}
+        <Button type="submit" className="mt-8 h-12 w-full text-base font-semibold" disabled={quoting || !recipient || editingRecipient} aria-busy={quoting}>
+          <LoadingLabel loading={quoting}>{t("send.continue")}</LoadingLabel>
+        </Button>
+      </form>
+      <EstimateCard estimate={estimate} />
+    </div>
   );
 }

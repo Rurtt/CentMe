@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, ViewTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SummaryRow } from "@/components/common/SummaryRow";
 import { Button, LoadingLabel } from "@/components/ui/button";
@@ -91,11 +91,9 @@ export function ReviewStep({ quote, recipient, onEdit, onNewQuote, quoting }: Pr
 
       <div className={cn("mt-6 transition-opacity", expired && "opacity-50")}>
         <p className="text-sm text-muted-foreground">{t("send.theyReceive")}</p>
-        <ViewTransition name="thb-amount" share="thb-morph" default="none">
-          <p className="tabular mt-1 text-4xl font-semibold tracking-tight text-brand">
-            {formatMinor(quote.destinationNetMinor, "THB", lang)}
-          </p>
-        </ViewTransition>
+        <p className="tabular mt-1 text-4xl font-semibold tracking-tight text-brand">
+          {formatMinor(quote.destinationNetMinor, "THB", lang)}
+        </p>
         <dl className="mt-6 space-y-3 border-t pt-6 text-base">
           <SummaryRow label={t("review.youSend")} value={amountText} strong />
           <SummaryRow label={t("send.fee")} value={formatMinor(quote.feeMinor, "USD", lang)} />
